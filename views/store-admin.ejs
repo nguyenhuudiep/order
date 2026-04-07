@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quản Lý Đơn - Cửa Hàng</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <main class="page admin-page store-shell">
+    <section class="panel hero store-hero">
+      <div>
+        <p class="kicker">Store Operations</p>
+        <h1>Màn Hình Quản Trị Cửa Hàng</h1>
+        <p>Điều hành đơn hàng theo thời gian thực, kiểm soát menu và hiệu suất phục vụ trong một màn hình duy nhất.</p>
+      </div>
+      <div class="row-actions">
+        <span id="admin-user-badge" class="badge"></span>
+        <span id="realtime-badge" class="badge">Realtime: đang kết nối...</span>
+        <button id="edit-profile-btn" class="secondary">Tài khoản</button>
+        <button id="logout-btn" class="secondary">Đăng xuất</button>
+      </div>
+    </section>
+
+    <section class="store-kpi-strip">
+      <article class="kpi-card">
+        <p>Tổng đơn</p>
+        <h3 id="kpi-total-orders">0</h3>
+      </article>
+      <article class="kpi-card">
+        <p>Doanh thu gộp</p>
+        <h3 id="kpi-gross-revenue">0 VND</h3>
+      </article>
+      <article class="kpi-card">
+        <p>Hoàn thành</p>
+        <h3 id="kpi-completed-revenue">0 VND</h3>
+      </article>
+      <article class="kpi-card">
+        <p>Đơn hủy</p>
+        <h3 id="kpi-cancelled-orders">0</h3>
+      </article>
+    </section>
+
+    <section class="store-workspace tabbed-workspace">
+      <div class="store-tabs" role="tablist" aria-label="Điều hướng quản trị cửa hàng">
+        <button class="tab-btn active" type="button" role="tab" aria-selected="true" data-tab-btn="orders">Đơn hàng</button>
+        <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab-btn="tables">Bàn</button>
+        <button class="tab-btn" type="button" role="tab" aria-selected="false" data-tab-btn="menu">Thực đơn</button>
+      </div>
+
+      <section class="tab-panel active orders-tab-panel" data-tab-panel="orders">
+        <section class="panel store-card">
+          <header class="card-head">
+            <h2>Bộ lọc đơn hàng</h2>
+            <p>Lọc nhanh theo trạng thái và thời gian để xử lý ca làm việc.</p>
+          </header>
+          <form id="order-filter-form" class="form inline-form">
+            <input name="q" placeholder="Tìm mã đơn hoặc nội dung" />
+            <select name="status">
+              <option value="all">Tất cả trạng thái</option>
+              <option value="pending">Chờ xác nhận</option>
+              <option value="preparing">Đang chuẩn bị</option>
+              <option value="completed">Hoàn thành</option>
+              <option value="cancelled">Hủy</option>
+            </select>
+            <input type="date" name="from" />
+            <input type="date" name="to" />
+            <div class="row-actions">
+              <button type="submit">Lọc</button>
+              <button type="button" id="reset-order-filter" class="secondary">Xóa lọc</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="panel store-card order-board order-board-full">
+          <header class="card-head order-board-head">
+            <div>
+              <h2>Bảng điều phối đơn hàng</h2>
+              <p>Theo dõi đơn mới theo thời gian thực và xử lý ngay.</p>
+            </div>
+            <button id="refresh-orders" class="secondary">Tải lại đơn</button>
+          </header>
+          <div class="order-list-head" aria-hidden="true">
+            <span>Thông tin đơn</span>
+            <span>Tổng quan</span>
+            <span>Cập nhật trạng thái</span>
+            <span>Thao tác</span>
+          </div>
+          <div id="orders-list" class="orders-list orders-compact-list"></div>
+          <div id="orders-pagination" class="orders-pagination" aria-live="polite"></div>
+        </section>
+
+        <section class="panel store-card">
+          <h2>Báo cáo nhanh</h2>
+          <div id="report-cards" class="report-cards"></div>
+          <h3>Top món bán chạy</h3>
+          <div id="top-items" class="simple-list"></div>
+        </section>
+      </section>
+
+      <section class="tab-panel" data-tab-panel="tables" hidden>
+        <section class="panel store-card">
+          <header class="card-head">
+            <h2>Quản lý bàn và QR</h2>
+            <p>Tạo bàn mới, nhận ngay ảnh QR và link order để in dán tại bàn.</p>
+          </header>
+          <form id="table-form" class="form inline-form">
+            <input type="hidden" name="id" />
+            <input name="tableNumber" placeholder="Số bàn (VD: B04)" required />
+            <input name="qrToken" placeholder="Mã QR (để trống tự sinh)" />
+            <label class="checkbox">
+              <input type="checkbox" name="isActive" checked />
+              Bàn hoạt động
+            </label>
+            <button id="print-qr-btn" class="btn btn-outline" type="button">In tất cả QR</button>
+            <button type="submit" id="table-submit-btn">Tạo bàn</button>
+            <button type="button" id="reset-table-form" class="secondary">Mới</button>
+          </form>
+          <p id="table-message" class="message"></p>
+          <div id="tables-list" class="orders-list tables-grid"></div>
+        </section>
+      </section>
+
+      <section class="tab-panel" data-tab-panel="menu" hidden>
+        <section class="panel store-card">
+          <header class="card-head">
+            <h2>Quản lý menu cửa hàng</h2>
+            <p>Thêm nhanh món mới, giá bán và trạng thái hiển thị.</p>
+          </header>
+          <form id="menu-form" class="form">
+            <input type="hidden" name="id" />
+            <input name="name" placeholder="Tên món" required />
+            <select name="category" required>
+              <option value="food">Đồ ăn</option>
+              <option value="drink">Đồ uống</option>
+            </select>
+            <input type="text" name="price" class="money-input" inputmode="numeric" placeholder="Giá (VD: 35.000)" required />
+            <label class="checkbox">
+              <input type="checkbox" name="isAvailable" checked />
+              Đang bán
+            </label>
+            <div class="row-actions">
+              <button type="submit">Lưu món</button>
+              <button type="button" id="reset-menu-form" class="secondary">Mới</button>
+            </div>
+          </form>
+          <p id="menu-message" class="message"></p>
+          <div id="admin-menu-list" class="menu-list"></div>
+        </section>
+      </section>
+    </section>
+  </main>
+
+  <div id="toast-container" class="toast-container"></div>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/store-admin.js"></script>
+</body>
+</html>

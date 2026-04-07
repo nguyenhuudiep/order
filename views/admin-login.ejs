@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Đăng Nhập Admin</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <main class="page login-page login-shell">
+    <section class="login-brand">
+      <p class="kicker">Smart Multi Store</p>
+      <h1>Quản trị chuỗi cửa hàng chuyên nghiệp</h1>
+      <p>Đăng nhập để quản lý cửa hàng, bàn QR, tài khoản và luồng đơn theo thời gian thực.</p>
+
+      <div class="login-highlights">
+        <article>
+          <h3>Vận hành tập trung</h3>
+          <p>Super admin kiểm soát toàn bộ hệ thống từ một dashboard duy nhất.</p>
+        </article>
+        <article>
+          <h3>Phân quyền rõ ràng</h3>
+          <p>Tài khoản cửa hàng chỉ thao tác trong phạm vi cửa hàng của mình.</p>
+        </article>
+        <article>
+          <h3>Đơn hàng theo QR bàn</h3>
+          <p>Khách quét mã và gọi món nhanh, không cần nhập thông tin cá nhân.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="panel login-panel login-card">
+      <h2>Đăng nhập quản trị</h2>
+      <p>Vui lòng nhập thông tin để tiếp tục.</p>
+      <form id="login-form" class="form">
+        <input name="username" placeholder="Tên đăng nhập" required />
+        <input name="password" type="password" placeholder="Mật khẩu" required />
+        <button type="submit">Đăng nhập hệ thống</button>
+      </form>
+      <p class="hint">Mặc định: superadmin/admin123 (hệ thống), store1/store123 (cửa hàng)</p>
+      <p id="login-message" class="message"></p>
+      <a class="admin-link" href="/">Về trang khách hàng</a>
+    </section>
+  </main>
+
+  <script>
+    const loginForm = document.getElementById('login-form');
+    const loginMessageEl = document.getElementById('login-message');
+
+    loginForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      loginMessageEl.textContent = '';
+
+      const formData = new FormData(loginForm);
+      const payload = {
+        username: formData.get('username'),
+        password: formData.get('password')
+      };
+
+      const response = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        loginMessageEl.textContent = result.message || 'Đăng nhập thất bại.';
+        return;
+      }
+
+      window.location.href = '/admin';
+    });
+  </script>
+</body>
+</html>

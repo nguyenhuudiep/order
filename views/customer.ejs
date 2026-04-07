@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Đặt Món - Khách Hàng</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <main class="page customer-page">
+    <section class="panel hero">
+      <h1>Đặt Đồ Ăn Và Đồ Uống</h1>
+      <p>Quét QR tại bàn để đặt món, đơn sẽ gắn trực tiếp theo bàn.</p>
+      <p id="table-context" class="badge">Đang chờ mã QR bàn...</p>
+    </section>
+
+    <section class="grid customer-grid">
+      <div class="panel">
+        <h2>Danh sách món</h2>
+        <div id="menu-list" class="menu-list"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Giỏ hàng</h2>
+        <div id="cart-empty">Chưa có món nào trong giỏ.</div>
+        <div id="cart-list"></div>
+        <p class="total">Tổng: <span id="cart-total">0</span> VND</p>
+
+        <h3>Ghi chú cho bếp / phục vụ</h3>
+        <form id="order-form" class="form">
+          <textarea name="note" placeholder="Ghi chú"></textarea>
+          <button type="submit">Đặt hàng</button>
+        </form>
+        <p id="order-message" class="message"></p>
+        <div id="order-status-panel" class="order-status-panel" style="display:none;">
+          <p class="hint">Trạng thái đơn gần nhất</p>
+          <p id="order-status-value" class="badge">Chờ xác nhận</p>
+        </div>
+
+        <section class="customer-history-wrap">
+          <h3>Lịch sử đơn tại bàn</h3>
+          <p class="hint">Đơn sẽ được giữ ở đây cho đến khi cửa hàng bấm đã thanh toán.</p>
+          <p class="total">Tổng cần thanh toán: <span id="outstanding-total">0</span> VND</p>
+          <div id="customer-order-history" class="orders-list"></div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/customer.js"></script>
+</body>
+</html>

@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quản Lý - Chủ Cửa Hàng</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <main class="page admin-page">
+    <section class="panel hero">
+      <h1>Bảng Điều Khiển Chủ Cửa Hàng</h1>
+      <p>Quản lý món và cập nhật đơn hàng theo thời gian thực.</p>
+      <div class="row-actions">
+        <span id="admin-user-badge" class="badge"></span>
+        <span id="realtime-badge" class="badge">Realtime: đang kết nối...</span>
+        <button id="logout-btn" class="secondary">Đăng xuất</button>
+        <a class="admin-link" href="/">Đến trang Khách Hàng</a>
+      </div>
+    </section>
+
+    <section class="grid report-grid">
+      <div class="panel">
+        <h2>Bộ lọc đơn hàng</h2>
+        <form id="order-filter-form" class="form inline-form">
+          <input name="q" placeholder="Tìm tên, SĐT, mã đơn" />
+          <select name="status">
+            <option value="all">Tất cả trạng thái</option>
+            <option value="pending">Chờ xác nhận</option>
+            <option value="confirmed">Đã xác nhận</option>
+            <option value="preparing">Đang chuẩn bị</option>
+            <option value="delivering">Đang giao</option>
+            <option value="completed">Hoàn thành</option>
+            <option value="cancelled">Đã hủy</option>
+          </select>
+          <input type="date" name="from" />
+          <input type="date" name="to" />
+          <div class="row-actions">
+            <button type="submit">Lọc</button>
+            <button type="button" id="reset-order-filter" class="secondary">Xóa lọc</button>
+          </div>
+        </form>
+      </div>
+      <div class="panel">
+        <h2>Báo cáo nhanh</h2>
+        <div id="report-cards" class="report-cards"></div>
+        <h3>Top món bán chạy</h3>
+        <div id="top-items" class="simple-list"></div>
+      </div>
+    </section>
+
+    <section class="grid">
+      <div class="panel">
+        <h2>Quản lý menu</h2>
+        <form id="menu-form" class="form">
+          <input type="hidden" name="id" />
+          <input name="name" placeholder="Tên món" required />
+          <select name="category" required>
+            <option value="food">Đồ ăn</option>
+            <option value="drink">Đồ uống</option>
+          </select>
+          <input type="number" name="price" min="0" step="1000" placeholder="Giá" required />
+          <label class="checkbox">
+            <input type="checkbox" name="isAvailable" checked />
+            Đang bán
+          </label>
+          <div class="row-actions">
+            <button type="submit">Lưu món</button>
+            <button type="button" id="reset-menu-form" class="secondary">Mới</button>
+          </div>
+        </form>
+        <p id="menu-message" class="message"></p>
+
+        <div id="admin-menu-list" class="menu-list"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Danh sách đơn</h2>
+        <button id="refresh-orders" class="secondary">Tải lại đơn</button>
+        <div id="orders-list" class="orders-list"></div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast-container" class="toast-container"></div>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/admin.js"></script>
+</body>
+</html>

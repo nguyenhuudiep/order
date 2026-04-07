@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quản Trị Hệ Thống</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <main class="page admin-page platform-shell">
+    <section class="panel hero platform-hero">
+      <div>
+        <p class="kicker">Platform Control Center</p>
+        <h1>Quản Trị Hệ Thống Đa Cửa Hàng</h1>
+        <p>Thiết lập toàn bộ hệ sinh thái: cửa hàng, bàn QR và tài khoản vận hành.</p>
+      </div>
+      <div class="row-actions">
+        <span id="admin-user-badge" class="badge"></span>
+        <span id="realtime-badge" class="badge">Realtime: đang kết nối...</span>
+        <button id="edit-profile-btn" class="secondary">Tài khoản</button>
+        <button id="logout-btn" class="secondary">Đăng xuất</button>
+      </div>
+    </section>
+
+    <section class="platform-grid">
+      <section class="panel platform-card">
+        <header class="card-head">
+          <h2>Quản lý cửa hàng</h2>
+          <p>Tạo mới hoặc chỉnh sửa thông tin cửa hàng trong hệ thống.</p>
+        </header>
+        <form id="store-form" class="form">
+          <input type="hidden" name="id" />
+          <input name="name" placeholder="Tên cửa hàng" required />
+          <input name="phone" placeholder="Số điện thoại (không bắt buộc)" />
+          <input name="address" placeholder="Địa chỉ" />
+          <label class="checkbox">
+            <input type="checkbox" name="isActive" checked />
+            Đang hoạt động
+          </label>
+          <div class="row-actions">
+            <button type="submit">Lưu cửa hàng</button>
+            <button type="button" id="reset-store-form" class="secondary">Mới</button>
+          </div>
+        </form>
+        <p id="store-message" class="message"></p>
+        <div id="stores-list" class="menu-list"></div>
+      </section>
+
+      <section class="panel platform-card">
+        <header class="card-head">
+          <h2>Tài khoản cửa hàng</h2>
+          <p>Phân quyền tài khoản để quản trị theo từng cửa hàng.</p>
+        </header>
+        <form id="store-user-form" class="form">
+          <input name="username" placeholder="Tên đăng nhập" required />
+          <input name="password" type="password" placeholder="Mật khẩu (>=6 ký tự)" required />
+          <input name="fullName" placeholder="Họ tên" required />
+          <select name="storeId" id="store-user-store" required></select>
+          <label class="checkbox">
+            <input type="checkbox" name="isActive" checked />
+            Đang hoạt động
+          </label>
+          <button type="submit">Tạo tài khoản cửa hàng</button>
+        </form>
+        <p id="store-user-message" class="message"></p>
+        <div id="store-users-list" class="menu-list"></div>
+      </section>
+    </section>
+
+    <section class="panel platform-card qr-card">
+      <header class="card-head">
+        <h2>Bàn và mã QR theo cửa hàng</h2>
+        <p>Chế độ xem tổng hợp. Chức năng tạo bàn đã chuyển cho tài khoản chủ cửa hàng.</p>
+      </header>
+      <form id="table-filter-form" class="form inline-form">
+        <select name="storeId" id="table-store" required></select>
+        <button type="submit">Xem danh sách bàn</button>
+      </form>
+      <p id="table-message" class="message"></p>
+      <div id="tables-list" class="orders-list tables-grid"></div>
+    </section>
+  </main>
+
+  <div id="toast-container" class="toast-container"></div>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/platform-admin.js"></script>
+</body>
+</html>
