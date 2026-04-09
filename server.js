@@ -1,4 +1,5 @@
-require('dotenv').config();
+const fs = require('fs');
+const dotenv = require('dotenv');
 const http = require('http');
 const express = require('express');
 const path = require('path');
@@ -9,10 +10,32 @@ const PDFDocument = require('pdfkit');
 const QRCode = require('qrcode');
 const { Server } = require('socket.io');
 
+const ROOT_DIR = __dirname;
+const nodeEnv = String(process.env.NODE_ENV || 'development').trim();
+const customEnvFile = String(process.env.ENV_FILE || '').trim();
+const loadedEnvFiles = [];
+
+const envCandidates = customEnvFile
+  ? [customEnvFile]
+  : [
+      `.env.${nodeEnv}.local`,
+      `.env.${nodeEnv}`,
+      '.env.local',
+      '.env'
+    ];
+
+envCandidates.forEach((candidate) => {
+  const envPath = path.isAbsolute(candidate) ? candidate : path.join(ROOT_DIR, candidate);
+  if (fs.existsSync(envPath)) {
+    dotenv.config({ path: envPath, override: false });
+    loadedEnvFiles.push(envPath);
+  }
+});
+
 const app = express();
 const httpServer = http.createServer(app);
 const io = new Server(httpServer);
-const PORT = Number(process.env.PORT || 3000);
+const PORT = Number(process.env.PORT || 5100);
 const SESSION_SECRET = process.env.SESSION_SECRET || 'change-this-secret';
 const ORDER_STATUSES = ['pending', 'preparing', 'completed', 'cancelled'];
 const STATUS_MAP = {
@@ -38,6 +61,11 @@ const dbConfig = {
     idleTimeoutMillis: 30000
   }
 };
+
+function getMissingRequiredEnvVars() {
+  const requiredEnvVars = ['DB_USER', 'DB_PASSWORD', 'DB_SERVER', 'DB_DATABASE', 'SESSION_SECRET'];
+  return requiredEnvVars.filter((key) => !String(process.env[key] || '').trim());
+}
 
 let pool;
 let compatibilityReadyPromise;
@@ -1614,6 +1642,40 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ message: 'Lỗi hệ thống.' });
 });
 
-httpServer.listen(PORT, () => {
-  console.log(`Ứng dụng đang chạy tại http://localhost:${PORT}`);
+httpServer.on('error', (error) => {
+  if (error && error.code === 'EADDRINUSE') {
+    console.error(`[BOOT] Port ${PORT} đã bị chiếm. Vui lòng đổi PORT hoặc dừng tiến trình đang dùng cổng này.`);
+    process.exit(1);
+  }
+
+  console.error('[BOOT] Không thể khởi động HTTP server:', error);
+  process.exit(1);
 });
+
+async function bootstrap() {
+  const missingEnvVars = getMissingRequiredEnvVars();
+  const loadedEnvSummary = loadedEnvFiles.length
+    ? loadedEnvFiles.map((envPath) => path.basename(envPath)).join(', ')
+    : '(không tìm thấy file .env)';
+
+  console.log(`[BOOT] NODE_ENV=${nodeEnv}; loaded env files: ${loadedEnvSummary}`);
+
+  if (missingEnvVars.length > 0) {
+    console.error(`[BOOT] Thiếu biến môi trường bắt buộc: ${missingEnvVars.join(', ')}`);
+    process.exit(1);
+  }
+
+  try {
+    await getPool();
+    console.log('[BOOT] Kết nối database thành công.');
+  } catch (error) {
+    console.error('[BOOT] Không thể kết nối database. Kiểm tra DB_SERVER/DB_PORT/DB_USER/DB_PASSWORD và firewall.', error);
+    process.exit(1);
+  }
+
+  httpServer.listen(PORT, () => {
+    console.log(`Ứng dụng đang chạy tại http://localhost:${PORT}`);
+  });
+}
+
+bootstrap();
