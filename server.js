@@ -743,6 +743,7 @@ app.get('/api/orders/history', async (req, res) => {
         INNER JOIN dbo.StoreTables t ON o.TableId = t.Id
         WHERE t.QrToken = @tableToken
           AND ISNULL(o.IsPaid, 0) = 0
+          AND o.Status <> 'cancelled'
         ORDER BY o.CreatedAt DESC
       `);
 
@@ -755,6 +756,7 @@ app.get('/api/orders/history', async (req, res) => {
         INNER JOIN dbo.StoreTables t ON o.TableId = t.Id
         WHERE t.QrToken = @tableToken
           AND ISNULL(o.IsPaid, 0) = 0
+          AND o.Status <> 'cancelled'
         ORDER BY oi.Id ASC
       `);
 
@@ -766,6 +768,7 @@ app.get('/api/orders/history', async (req, res) => {
           INNER JOIN dbo.StoreTables t ON o.TableId = t.Id
           WHERE t.QrToken = @tableToken
             AND ISNULL(o.IsPaid, 0) = 0
+            AND o.Status <> 'cancelled'
         `);
 
     const itemsByOrderId = itemsResult.recordset.reduce((acc, item) => {

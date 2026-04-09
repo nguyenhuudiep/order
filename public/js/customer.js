@@ -217,13 +217,16 @@ async function fetchOrderHistory() {
     }
 
     const orders = Array.isArray(result.orders) ? result.orders : [];
-    hasActiveOrders = orders.length > 0;
-    renderOrderHistory(orders);
+    const activeOrders = orders.filter((order) => String(order.Status || '').toLowerCase() !== 'cancelled');
+    hasActiveOrders = activeOrders.length > 0;
+    renderOrderHistory(activeOrders);
     if (outstandingTotalEl) {
-      outstandingTotalEl.textContent = formatMoney(result.outstandingTotal || 0);
+      const fallbackOutstanding = activeOrders.reduce((sum, order) => sum + Number(order.TotalAmount || 0), 0);
+      const serverOutstanding = Number(result.outstandingTotal || 0);
+      outstandingTotalEl.textContent = formatMoney(serverOutstanding || fallbackOutstanding);
     }
 
-    const latest = orders[0];
+    const latest = activeOrders[0];
     if (!latest) {
       if (orderStatusPanelEl) {
         orderStatusPanelEl.style.display = 'none';
