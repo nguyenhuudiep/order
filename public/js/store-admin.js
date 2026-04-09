@@ -54,6 +54,8 @@ let currentAdminUser = null;
 const ORDERS_PAGE_SIZE = 10;
 let currentOrdersPage = 1;
 let storeSyncTimer = null;
+let hasActiveOrders = false;
+let storeSocketConnected = false;
 
 function buildPageItems(totalPages, currentPage) {
   if (totalPages <= 7) {
@@ -110,6 +112,23 @@ function toQueryString(params) {
     if (value) query.set(key, value);
   });
   return query.toString();
+}
+
+function withNoCache(url) {
+  const separator = url.includes('?') ? '&' : '?';
+  return `${url}${separator}_ts=${Date.now()}`;
+}
+
+async function fetchJsonNoCache(url) {
+  const response = await fetch(withNoCache(url), {
+    cache: 'no-store',
+    headers: {
+      'Cache-Control': 'no-cache'
+    }
+  });
+
+  const result = await response.json().catch(() => ({}));
+  return { response, result };
 }
 
 function formatMoney(value) {
@@ -528,8 +547,7 @@ async function fetchMenu() {
 
 async function fetchReport() {
   const qs = toQueryString(orderFilter);
-  const response = await fetch(`/api/store/reports/summary?${qs}`);
-  const result = await response.json();
+  const { response, result } = await fetchJsonNoCache(`/api/store/reports/summary?${qs}`);
 
   if (!response.ok) {
     reportCardsEl.innerHTML = `<p>${result.message || 'Không tải được báo cáo.'}</p>`;
@@ -620,10 +638,10 @@ tableForm.addEventListener('submit', async (event) => {
 
 async function fetchOrders() {
   const qs = toQueryString(orderFilter);
-  const response = await fetch(`/api/store/orders?${qs}`);
-  const orders = await response.json();
+  const { response, result: orders } = await fetchJsonNoCache(`/api/store/orders?${qs}`);
 
   if (!response.ok) {
+    hasActiveOrders = false;
     ordersListEl.innerHTML = `<p>${orders.message || 'Không tải được đơn hàng.'}</p>`;
     if (ordersPaginationEl) ordersPaginationEl.innerHTML = '';
     return;
@@ -631,10 +649,13 @@ async function fetchOrders() {
 
   ordersListEl.innerHTML = '';
   if (!orders.length) {
+    hasActiveOrders = false;
     ordersListEl.innerHTML = '<p>Chưa có đơn hàng.</p>';
     renderOrdersPagination(0);
     return;
   }
+
+  hasActiveOrders = true;
 
   const sortedOrders = [...orders].sort((a, b) => {
     const pa = statusPriority[a.Status] || 99;
@@ -740,12 +761,22 @@ function connectRealtime() {
 
   const socket = io();
   socket.on('connect', () => {
+    storeSocketConnected = true;
     realtimeBadgeEl.textContent = 'Realtime: đã kết nối';
+    if (hasActiveOrders) {
+      refreshOrdersAndReport();
+    }
   });
   socket.on('disconnect', () => {
-    realtimeBadgeEl.textContent = 'Realtime: mất kết nối';
+    storeSocketConnected = false;
+    realtimeBadgeEl.textContent = 'Realtime: mất kết nối, đang thử lại...';
+  });
+  socket.on('connect_error', () => {
+    storeSocketConnected = false;
+    realtimeBadgeEl.textContent = 'Realtime: lỗi kết nối, đang thử lại...';
   });
   socket.on('order:new', (payload) => {
+    hasActiveOrders = true;
     showToast(`Đơn mới #${payload.orderId} - bàn ${payload.tableNumber}`, 'success');
     playNewOrderSound();
     refreshOrdersAndReport();
@@ -771,8 +802,10 @@ function startStoreSyncFallback() {
 
   // Keep UI in sync even when websocket is unstable on some networks/devices.
   storeSyncTimer = setInterval(() => {
+    if (storeSocketConnected) return;
+    if (!hasActiveOrders) return;
     refreshOrdersAndReport();
-  }, 12000);
+  }, 4000);
 }
 
 function showTab(tabName) {
@@ -907,7 +940,7 @@ ensureSession().then((ok) => {
   startStoreSyncFallback();
 
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') {
+    if (document.visibilityState === 'visible' && hasActiveOrders) {
       refreshOrdersAndReport();
     }
   });

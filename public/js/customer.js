@@ -16,6 +16,8 @@ let menuItems = [];
 let tableToken = '';
 let activeOrderId = null;
 let statusSyncTimer = null;
+let hasActiveOrders = false;
+let customerSocketConnected = false;
 
 const statusMap = {
   pending: 'Chờ xác nhận',
@@ -26,6 +28,23 @@ const statusMap = {
 
 function formatMoney(value) {
   return Number(value).toLocaleString('vi-VN');
+}
+
+function withNoCache(url) {
+  const separator = url.includes('?') ? '&' : '?';
+  return `${url}${separator}_ts=${Date.now()}`;
+}
+
+async function fetchJsonNoCache(url) {
+  const response = await fetch(withNoCache(url), {
+    cache: 'no-store',
+    headers: {
+      'Cache-Control': 'no-cache'
+    }
+  });
+
+  const result = await response.json().catch(() => ({}));
+  return { response, result };
 }
 
 function getTableTokenFromUrl() {
@@ -190,8 +209,7 @@ async function fetchOrderHistory() {
   if (!tableToken || !customerOrderHistoryEl) return;
 
   try {
-    const response = await fetch(`/api/orders/history?tableToken=${encodeURIComponent(tableToken)}`);
-    const result = await response.json();
+    const { response, result } = await fetchJsonNoCache(`/api/orders/history?tableToken=${encodeURIComponent(tableToken)}`);
 
     if (!response.ok) {
       customerOrderHistoryEl.innerHTML = `<p>${result.message || 'Không tải được lịch sử đơn.'}</p>`;
@@ -199,6 +217,7 @@ async function fetchOrderHistory() {
     }
 
     const orders = Array.isArray(result.orders) ? result.orders : [];
+    hasActiveOrders = orders.length > 0;
     renderOrderHistory(orders);
     if (outstandingTotalEl) {
       outstandingTotalEl.textContent = formatMoney(result.outstandingTotal || 0);
@@ -224,8 +243,7 @@ async function pollOrderStatus() {
   if (!activeOrderId || !tableToken) return;
 
   try {
-    const response = await fetch(`/api/orders/${activeOrderId}/status?tableToken=${encodeURIComponent(tableToken)}`);
-    const result = await response.json();
+    const { response, result } = await fetchJsonNoCache(`/api/orders/${activeOrderId}/status?tableToken=${encodeURIComponent(tableToken)}`);
     if (!response.ok) return;
 
     updateOrderStatusUi(result.status);
@@ -234,12 +252,12 @@ async function pollOrderStatus() {
   }
 }
 
-function startOrderStatusTracking(orderId) {
+async function startOrderStatusTracking(orderId) {
   activeOrderId = Number(orderId);
   if (!Number.isInteger(activeOrderId)) return;
 
   updateOrderStatusUi('pending');
-  pollOrderStatus();
+  await pollOrderStatus();
 }
 
 function connectRealtime() {
@@ -251,18 +269,24 @@ function connectRealtime() {
   const socket = io({ query: { tableToken } });
 
   socket.on('connect', () => {
+    customerSocketConnected = true;
     setRealtimeBadge('Realtime: đã kết nối');
   });
 
   socket.on('disconnect', () => {
+    customerSocketConnected = false;
     setRealtimeBadge('Realtime: mất kết nối, đang thử lại...');
   });
 
   socket.on('connect_error', () => {
+    customerSocketConnected = false;
     setRealtimeBadge('Realtime: lỗi kết nối, đang thử lại...');
   });
 
   socket.on('table:order-changed', (payload) => {
+    if (payload?.event === 'order-created' || payload?.orderId) {
+      hasActiveOrders = true;
+    }
     if (payload && payload.orderId && payload.status) {
       updateOrderCardStatus(payload.orderId, payload.status);
       if (Number(payload.orderId) === Number(activeOrderId)) {
@@ -282,9 +306,11 @@ function startStatusSyncFallback() {
 
   // Mobile networks may suspend websocket frequently, so keep a light sync fallback.
   statusSyncTimer = setInterval(() => {
+    if (customerSocketConnected) return;
+    if (!hasActiveOrders && !activeOrderId) return;
     fetchOrderHistory();
     pollOrderStatus();
-  }, 12000);
+  }, 4000);
 }
 
 orderForm.addEventListener('submit', async (event) => {
@@ -319,8 +345,10 @@ orderForm.addEventListener('submit', async (event) => {
   }
 
   orderMessageEl.textContent = `${result.message} Mã đơn: #${result.orderId}`;
-  startOrderStatusTracking(result.orderId);
-  fetchOrderHistory();
+  hasActiveOrders = true;
+  await startOrderStatusTracking(result.orderId);
+  await fetchOrderHistory();
+  await pollOrderStatus();
   orderForm.reset();
   cart.clear();
   renderCart();

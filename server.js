@@ -681,6 +681,9 @@ app.post('/api/orders', async (req, res) => {
 });
 
 app.get('/api/orders/:id/status', async (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
   const orderId = Number(req.params.id);
   const tableToken = String(req.query.tableToken || '').trim();
 
@@ -721,6 +724,9 @@ app.get('/api/orders/:id/status', async (req, res) => {
 });
 
 app.get('/api/orders/history', async (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
   const tableToken = String(req.query.tableToken || '').trim();
 
   if (!tableToken) {
@@ -785,6 +791,9 @@ app.get('/api/orders/history', async (req, res) => {
 });
 
 app.get('/api/store/orders', requireStore, async (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
   try {
     const connection = await getPool();
     const orderRequest = connection.request();
@@ -911,6 +920,9 @@ app.get('/api/admin/orders/:id/pdf', requireAuth, async (req, res) => {
 });
 
 app.get('/api/store/reports/summary', requireStore, async (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
   try {
     const connection = await getPool();
 
