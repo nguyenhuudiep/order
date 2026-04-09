@@ -2,6 +2,23 @@
 
 File: scripts/deploy-redeploy.ps1
 
+## PM2 deploy 1 lenh (khuyen dung)
+
+PowerShell (tren server production):
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass
+.\scripts\deploy-pm2.ps1 -AppPath "D:\DIEP-NH\Copilot\apps\Order" -Branch main -ProcessName "order" -Port 5100 -NodeEnv "production" -EnvFile "D:\DIEP-NH\Copilot\apps\Order\.env.production"
+```
+
+Script tu dong:
+- Pull code
+- Cai dependencies
+- Verify module dotenv
+- Restart/start PM2 process `order`
+- Health check `http://localhost:5100/admin/login`
+- `pm2 save`
+
 ## 1) Deploy lan dau (clone + install + tao service + restart)
 
 PowerShell (Run as Administrator):

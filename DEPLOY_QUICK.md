@@ -26,3 +26,9 @@ if (Get-Service -Name "OrderApp" -ErrorAction SilentlyContinue) { Restart-Servic
 
 http://localhost:5100/admin/login
 http://<domain>/admin/login
+
+## 4) PM2 deploy gon (khuyen dung)
+
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+Set-Location "D:\DIEP-NH\Copilot\apps\Order"
+.\scripts\deploy-pm2.ps1 -AppPath "D:\DIEP-NH\Copilot\apps\Order" -Branch main -ProcessName "order" -Port 5100 -NodeEnv "production" -EnvFile "D:\DIEP-NH\Copilot\apps\Order\.env.production"
