@@ -53,6 +53,7 @@ let tablesLoaded = false;
 let currentAdminUser = null;
 const ORDERS_PAGE_SIZE = 10;
 let currentOrdersPage = 1;
+let storeSyncTimer = null;
 
 function buildPageItems(totalPages, currentPage) {
   if (totalPages <= 7) {
@@ -446,6 +447,27 @@ function renderStatusButtons(order) {
   `).join('');
 }
 
+function refreshOrdersAndReport() {
+  fetchOrders();
+  fetchReport();
+}
+
+function applyOrderStatusOnCard(card, nextStatus) {
+  const statusPill = card.querySelector('.status-pill');
+  if (statusPill) {
+    statusPill.className = `status-pill status-${nextStatus}`;
+    statusPill.textContent = statusMap[nextStatus] || nextStatus;
+  }
+
+  const statusButtons = card.querySelectorAll('[data-order-status]');
+  statusButtons.forEach((btn) => {
+    const btnStatus = btn.getAttribute('data-value');
+    const isActive = btnStatus === nextStatus;
+    btn.classList.toggle('active', isActive);
+    btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+  });
+}
+
 async function fetchTables() {
   const response = await fetch('/api/store/tables');
   const tables = await response.json();
@@ -680,9 +702,9 @@ async function fetchOrders() {
         return;
       }
 
+        applyOrderStatusOnCard(card, nextStatus);
         showToast(`Đơn #${order.Id}: ${statusMap[nextStatus]}`);
-        fetchOrders();
-        fetchReport();
+        refreshOrdersAndReport();
       });
     });
 
@@ -700,8 +722,7 @@ async function fetchOrders() {
         }
 
         showToast(`Đơn #${order.Id} đã được đánh dấu thanh toán.`, 'success');
-        fetchOrders();
-        fetchReport();
+        refreshOrdersAndReport();
       });
     });
 
@@ -727,23 +748,31 @@ function connectRealtime() {
   socket.on('order:new', (payload) => {
     showToast(`Đơn mới #${payload.orderId} - bàn ${payload.tableNumber}`, 'success');
     playNewOrderSound();
-    fetchOrders();
-    fetchReport();
+    refreshOrdersAndReport();
   });
   socket.on('order:status-updated', (payload) => {
     if (payload?.status) {
       showToast(`Đơn #${payload.orderId} đã đổi sang ${statusMap[payload.status] || payload.status}`);
-      fetchOrders();
-      fetchReport();
+      refreshOrdersAndReport();
     }
   });
   socket.on('order:paid', (payload) => {
     if (payload?.orderId) {
       showToast(`Đơn #${payload.orderId} đã được thanh toán.`, 'success');
-      fetchOrders();
-      fetchReport();
+      refreshOrdersAndReport();
     }
   });
+}
+
+function startStoreSyncFallback() {
+  if (storeSyncTimer) {
+    clearInterval(storeSyncTimer);
+  }
+
+  // Keep UI in sync even when websocket is unstable on some networks/devices.
+  storeSyncTimer = setInterval(() => {
+    refreshOrdersAndReport();
+  }, 12000);
 }
 
 function showTab(tabName) {
@@ -861,8 +890,7 @@ if (resetTableFormBtn) {
   resetTableFormBtn.addEventListener('click', resetTableForm);
 }
 refreshOrdersBtn.addEventListener('click', () => {
-  fetchOrders();
-  fetchReport();
+  refreshOrdersAndReport();
 });
 
 if (printQrBtn) {
@@ -874,7 +902,13 @@ ensureSession().then((ok) => {
   applyDefaultDateFilter();
   initMoneyInputField();
   initTabs();
-  fetchOrders();
-  fetchReport();
+  refreshOrdersAndReport();
   connectRealtime();
+  startStoreSyncFallback();
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      refreshOrdersAndReport();
+    }
+  });
 });
