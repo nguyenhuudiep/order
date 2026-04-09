@@ -19,6 +19,22 @@ Script tu dong:
 - Health check `http://localhost:5100/admin/login`
 - `pm2 save`
 
+## PM2 deploy an toan (tranh anh huong app PM2 khac)
+
+PowerShell (tren server production):
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass
+.\scripts\deploy-safe-order.ps1 -AppPath "D:\DIEP-NH\Copilot\apps\Order" -Branch main -ProcessName "order" -Port 5100 -EnvFile "D:\DIEP-NH\Copilot\apps\Order\.env.production"
+```
+
+Script nay se:
+- Chi dung/restart process `order` (khong dung app PM2 khac)
+- Tu backup `web.config` local neu bi xung dot khi pull
+- Chi cai lai dependencies khi `package.json` hoac `package-lock.json` thay doi
+- Thu go lock file node cua rieng app Order neu gap EPERM khi npm ci
+- Health check truoc khi ket thuc
+
 ## 1) Deploy lan dau (clone + install + tao service + restart)
 
 PowerShell (Run as Administrator):
