@@ -9,11 +9,13 @@ const orderStatusPanelEl = document.getElementById('order-status-panel');
 const orderStatusValueEl = document.getElementById('order-status-value');
 const customerOrderHistoryEl = document.getElementById('customer-order-history');
 const outstandingTotalEl = document.getElementById('outstanding-total');
+const realtimeBadgeEl = document.getElementById('realtime-badge');
 
 const cart = new Map();
 let menuItems = [];
 let tableToken = '';
 let activeOrderId = null;
+let statusSyncTimer = null;
 
 const statusMap = {
   pending: 'Chờ xác nhận',
@@ -147,6 +149,21 @@ function updateOrderStatusUi(status) {
   orderStatusValueEl.textContent = statusMap[status] || status;
 }
 
+function setRealtimeBadge(text) {
+  if (!realtimeBadgeEl) return;
+  realtimeBadgeEl.textContent = text;
+}
+
+function updateOrderCardStatus(orderId, status) {
+  if (!customerOrderHistoryEl || !Number.isInteger(Number(orderId))) return;
+  const orderCardEl = customerOrderHistoryEl.querySelector(`[data-order-id="${Number(orderId)}"]`);
+  if (!orderCardEl) return;
+
+  const statusEl = orderCardEl.querySelector('[data-order-status]');
+  if (!statusEl) return;
+  statusEl.textContent = statusMap[status] || status;
+}
+
 function renderOrderHistory(orders) {
   if (!customerOrderHistoryEl) return;
 
@@ -158,9 +175,9 @@ function renderOrderHistory(orders) {
   customerOrderHistoryEl.innerHTML = orders.map((order) => {
     const itemsText = (order.items || []).map((item) => `${item.ItemName} x ${item.Quantity}`).join(', ');
     return `
-      <article class="order-card">
+      <article class="order-card" data-order-id="${order.Id}">
         <h4>Đơn #${order.Id}</h4>
-        <p><strong>Trạng thái:</strong> ${order.statusText || statusMap[order.Status] || order.Status}</p>
+        <p><strong>Trạng thái:</strong> <span data-order-status>${order.statusText || statusMap[order.Status] || order.Status}</span></p>
         <p><strong>Món:</strong> ${itemsText || '-'}</p>
         <p><strong>Tổng:</strong> ${formatMoney(order.TotalAmount)} VND</p>
         <p><strong>Ghi chú:</strong> ${order.Note || '-'}</p>
@@ -227,14 +244,47 @@ function startOrderStatusTracking(orderId) {
 
 function connectRealtime() {
   if (typeof io !== 'function' || !tableToken) {
+    setRealtimeBadge('Realtime: không khả dụng');
     return;
   }
 
   const socket = io({ query: { tableToken } });
-  socket.on('table:order-changed', () => {
+
+  socket.on('connect', () => {
+    setRealtimeBadge('Realtime: đã kết nối');
+  });
+
+  socket.on('disconnect', () => {
+    setRealtimeBadge('Realtime: mất kết nối, đang thử lại...');
+  });
+
+  socket.on('connect_error', () => {
+    setRealtimeBadge('Realtime: lỗi kết nối, đang thử lại...');
+  });
+
+  socket.on('table:order-changed', (payload) => {
+    if (payload && payload.orderId && payload.status) {
+      updateOrderCardStatus(payload.orderId, payload.status);
+      if (Number(payload.orderId) === Number(activeOrderId)) {
+        updateOrderStatusUi(payload.status);
+      }
+    }
+
     fetchOrderHistory();
     pollOrderStatus();
   });
+}
+
+function startStatusSyncFallback() {
+  if (statusSyncTimer) {
+    clearInterval(statusSyncTimer);
+  }
+
+  // Mobile networks may suspend websocket frequently, so keep a light sync fallback.
+  statusSyncTimer = setInterval(() => {
+    fetchOrderHistory();
+    pollOrderStatus();
+  }, 12000);
 }
 
 orderForm.addEventListener('submit', async (event) => {
@@ -293,6 +343,14 @@ async function init() {
   fetchMenu();
   fetchOrderHistory();
   connectRealtime();
+  startStatusSyncFallback();
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      fetchOrderHistory();
+      pollOrderStatus();
+    }
+  });
 }
 
 init();
