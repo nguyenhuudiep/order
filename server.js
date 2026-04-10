@@ -443,15 +443,31 @@ app.post('/api/admin/login', async (req, res) => {
       return res.status(401).json({ message: 'Sai tài khoản hoặc mật khẩu.' });
     }
 
-    req.session.adminUser = {
-      id: user.Id,
-      username: user.Username,
-      fullName: user.FullName,
-      role: user.Role,
-      storeId: user.StoreId || null
-    };
+    req.session.regenerate((regenerateError) => {
+      if (regenerateError) {
+        console.error(regenerateError);
+        return res.status(500).json({ message: 'Không thể đăng nhập lúc này.' });
+      }
 
-    return res.json({ message: 'Đăng nhập thành công.' });
+      req.session.adminUser = {
+        id: user.Id,
+        username: user.Username,
+        fullName: user.FullName,
+        role: user.Role,
+        storeId: user.StoreId || null
+      };
+
+      req.session.save((saveError) => {
+        if (saveError) {
+          console.error(saveError);
+          return res.status(500).json({ message: 'Không thể đăng nhập lúc này.' });
+        }
+
+        return res.json({ message: 'Đăng nhập thành công.' });
+      });
+    });
+
+    return;
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: 'Không thể đăng nhập lúc này.' });
