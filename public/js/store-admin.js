@@ -738,7 +738,8 @@ async function fetchOrders() {
 
     card.innerHTML = `
       <div class="order-row-main">
-        <h4 class="order-line">#${order.Id} • Bàn ${order.TableNumber}</h4>
+        <h4 class="order-line">STT ${order.DailySequence || 1} • Bàn ${order.TableNumber}</h4>
+        <p class="order-line order-truncate"><strong>Mã đơn:</strong> #${order.Id}</p>
         <p class="order-line order-truncate"><strong>Món:</strong> ${itemsText || '-'}</p>
         <p class="order-line order-truncate"><strong>Ghi chú:</strong> ${order.Note || '-'}</p>
       </div>

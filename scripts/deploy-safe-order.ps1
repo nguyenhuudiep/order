@@ -22,6 +22,23 @@ function Test-RequiredCommand {
   }
 }
 
+function Assert-LastExitCode {
+  param([string]$CommandName)
+  if ($LASTEXITCODE -ne 0) {
+    throw "$CommandName failed with exit code $LASTEXITCODE"
+  }
+}
+
+function Install-Dependencies {
+  if (Test-Path ".\package-lock.json") {
+    npm ci --omit=dev
+    Assert-LastExitCode -CommandName "npm ci --omit=dev"
+  } else {
+    npm install --omit=dev
+    Assert-LastExitCode -CommandName "npm install --omit=dev"
+  }
+}
+
 function Stop-OrderNodeProcesses {
   param([string]$PathHint)
 
@@ -53,6 +70,7 @@ Set-Location $AppPath
 
 Write-Step "Fetch source from origin/$Branch"
 git fetch origin $Branch
+Assert-LastExitCode -CommandName "git fetch"
 
 Write-Step "Handle local untracked web.config if present"
 $untrackedFiles = git ls-files --others --exclude-standard
@@ -64,7 +82,9 @@ if ($untrackedFiles -contains "web.config") {
 
 Write-Step "Pull latest code"
 git checkout $Branch
+Assert-LastExitCode -CommandName "git checkout"
 git pull --ff-only origin $Branch
+Assert-LastExitCode -CommandName "git pull --ff-only"
 
 Write-Step "Check if dependency install is needed"
 $installDeps = $true
@@ -83,20 +103,16 @@ if ($installDeps) {
 
   Write-Step "Install dependencies"
   try {
-    if (Test-Path ".\package-lock.json") {
-      npm ci --omit=dev
-    } else {
-      npm install --omit=dev
-    }
+    Install-Dependencies
   } catch {
     Write-Host "[WARN] Dependency install failed. Attempting targeted unlock for Order node processes..."
     Stop-OrderNodeProcesses -PathHint $AppPath
-    if (Test-Path ".\package-lock.json") {
-      npm ci --omit=dev
-    } else {
-      npm install --omit=dev
-    }
+    Install-Dependencies
   }
+
+  Write-Step "Verify critical dependency resolution"
+  node -e "require.resolve('dotenv')"
+  Assert-LastExitCode -CommandName "node require.resolve('dotenv')"
 } else {
   Write-Host "[INFO] package.json/package-lock.json unchanged. Skip dependency reinstall."
 }
@@ -117,8 +133,10 @@ if ($exists) {
 } else {
   pm2 start "server.js" --name $ProcessName --cwd $AppPath --update-env
 }
+Assert-LastExitCode -CommandName "pm2 restart/start"
 
 pm2 save | Out-Null
+Assert-LastExitCode -CommandName "pm2 save"
 
 Write-Step "Health check"
 $response = Invoke-WebRequest -Uri "http://localhost:$Port/admin/login" -UseBasicParsing -TimeoutSec 20

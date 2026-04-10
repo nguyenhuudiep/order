@@ -830,8 +830,32 @@ app.get('/api/store/orders', requireStore, async (req, res) => {
       return acc;
     }, {});
 
+    const getLocalDateKey = (value) => {
+      const dt = new Date(value);
+      const y = dt.getFullYear();
+      const m = String(dt.getMonth() + 1).padStart(2, '0');
+      const d = String(dt.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    };
+
+    const totalsByDay = new Map();
+    const dailySequenceByOrderId = new Map();
+    ordersResult.recordset.forEach((order) => {
+      const dateKey = getLocalDateKey(order.CreatedAt);
+      totalsByDay.set(dateKey, (totalsByDay.get(dateKey) || 0) + 1);
+    });
+
+    const nextDisplaySequenceByDay = new Map(totalsByDay);
+    ordersResult.recordset.forEach((order) => {
+      const dateKey = getLocalDateKey(order.CreatedAt);
+      const currentSequence = nextDisplaySequenceByDay.get(dateKey) || 1;
+      dailySequenceByOrderId.set(order.Id, currentSequence);
+      nextDisplaySequenceByDay.set(dateKey, Math.max(1, currentSequence - 1));
+    });
+
     const orders = ordersResult.recordset.map((order) => ({
       ...order,
+      DailySequence: dailySequenceByOrderId.get(order.Id) || 1,
       items: itemsByOrderId[order.Id] || []
     }));
 
