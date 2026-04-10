@@ -672,6 +672,7 @@ textarea {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 12px;
+  margin-top: 10px;
 }
 
 @media (min-width: 960px) {

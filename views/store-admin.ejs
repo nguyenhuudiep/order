@@ -78,7 +78,6 @@
               <h2>Bảng điều phối đơn hàng</h2>
               <p>Theo dõi đơn mới theo thời gian thực và xử lý ngay.</p>
             </div>
-            <button id="refresh-orders" class="secondary">Tải lại đơn</button>
           </header>
           <div class="order-list-head" aria-hidden="true">
             <span>Thông tin đơn</span>
@@ -106,8 +105,14 @@
           </header>
           <form id="table-form" class="form inline-form">
             <input type="hidden" name="id" />
-            <input name="tableNumber" placeholder="Số bàn (VD: B04)" required />
-            <input name="qrToken" placeholder="Mã QR (để trống tự sinh)" />
+            <p id="table-mode-hint" class="hint-text">Nhập số lượng bàn cần thêm, hệ thống sẽ tự đánh số nối tiếp.</p>
+            <div id="table-quantity-field">
+              <input name="quantity" type="number" min="1" step="1" value="1" placeholder="Số lượng bàn cần thêm" required />
+            </div>
+            <div id="table-edit-fields" hidden>
+              <input name="tableNumber" placeholder="Số bàn (VD: 12)" />
+              <input name="qrToken" placeholder="Mã QR (để trống giữ nguyên)" />
+            </div>
             <label class="checkbox">
               <input type="checkbox" name="isActive" checked />
               Bàn hoạt động

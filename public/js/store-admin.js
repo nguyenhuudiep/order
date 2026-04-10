@@ -7,6 +7,9 @@ const resetTableFormBtn = document.getElementById('reset-table-form');
 const tableSubmitBtn = document.getElementById('table-submit-btn');
 const tableMessageEl = document.getElementById('table-message');
 const tablesListEl = document.getElementById('tables-list');
+const tableModeHintEl = document.getElementById('table-mode-hint');
+const tableQuantityFieldEl = document.getElementById('table-quantity-field');
+const tableEditFieldsEl = document.getElementById('table-edit-fields');
 const printQrBtn = document.getElementById('print-qr-btn');
 const ordersListEl = document.getElementById('orders-list');
 const ordersPaginationEl = document.getElementById('orders-pagination');
@@ -351,9 +354,36 @@ function resetMenuForm() {
 function resetTableForm() {
   tableForm.reset();
   tableForm.id.value = '';
+  if (tableForm.quantity) {
+    tableForm.quantity.value = '1';
+  }
   tableForm.isActive.checked = true;
+  setTableFormMode(false);
+}
+
+function setTableFormMode(isEditMode) {
+  if (tableQuantityFieldEl) {
+    tableQuantityFieldEl.hidden = isEditMode;
+  }
+  if (tableEditFieldsEl) {
+    tableEditFieldsEl.hidden = !isEditMode;
+  }
+
+  if (tableModeHintEl) {
+    tableModeHintEl.textContent = isEditMode
+      ? 'Chế độ sửa bàn: cập nhật số bàn hoặc mã QR cho từng bàn.'
+      : 'Nhập số lượng bàn cần thêm, hệ thống sẽ tự đánh số nối tiếp.';
+  }
+
+  if (tableForm.tableNumber) {
+    tableForm.tableNumber.required = isEditMode;
+  }
+  if (tableForm.quantity) {
+    tableForm.quantity.required = !isEditMode;
+  }
+
   if (tableSubmitBtn) {
-    tableSubmitBtn.textContent = 'Tạo bàn';
+    tableSubmitBtn.textContent = isEditMode ? 'Cập nhật bàn' : 'Tạo bàn';
   }
 }
 
@@ -417,12 +447,10 @@ function renderTables(tables) {
       }
 
       tableForm.id.value = String(table.Id);
+      setTableFormMode(true);
       tableForm.tableNumber.value = table.TableNumber;
       tableForm.qrToken.value = table.QrToken;
       tableForm.isActive.checked = Boolean(table.IsActive);
-      if (tableSubmitBtn) {
-        tableSubmitBtn.textContent = 'Cập nhật bàn';
-      }
       showToast(`Đang sửa bàn ${table.TableNumber}.`);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     });
@@ -606,14 +634,29 @@ tableForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   tableMessageEl.textContent = '';
 
-  const payload = {
-    tableNumber: tableForm.tableNumber.value,
-    qrToken: tableForm.qrToken.value,
-    isActive: tableForm.isActive.checked
-  };
-
   const tableId = tableForm.id.value;
   const isEditMode = Boolean(tableId);
+  let payload;
+
+  if (isEditMode) {
+    payload = {
+      tableNumber: tableForm.tableNumber.value,
+      qrToken: tableForm.qrToken.value,
+      isActive: tableForm.isActive.checked
+    };
+  } else {
+    const quantity = Number(tableForm.quantity.value);
+    if (!Number.isInteger(quantity) || quantity <= 0) {
+      tableMessageEl.textContent = 'Số lượng bàn phải là số nguyên dương.';
+      return;
+    }
+
+    payload = {
+      quantity,
+      isActive: tableForm.isActive.checked
+    };
+  }
+
   const url = isEditMode ? `/api/store/tables/${tableId}` : '/api/store/tables';
   const method = isEditMode ? 'PUT' : 'POST';
 
@@ -626,7 +669,11 @@ tableForm.addEventListener('submit', async (event) => {
   const result = await response.json();
   tableMessageEl.textContent = result.message;
   if (response.ok) {
-    if (result.table && !isEditMode) {
+    if (!isEditMode && Array.isArray(result.tables) && result.tables.length) {
+      const firstTable = result.tables[0]?.TableNumber;
+      const lastTable = result.tables[result.tables.length - 1]?.TableNumber;
+      showToast(`Đã tạo ${result.tables.length} bàn (${firstTable} - ${lastTable}).`, 'success');
+    } else if (result.table && !isEditMode) {
       showToast(`Đã tạo bàn ${result.table.TableNumber} và sinh QR thành công.`, 'success');
     } else if (result.table && isEditMode) {
       showToast(`Đã cập nhật bàn ${result.table.TableNumber}.`, 'success');
@@ -922,13 +969,17 @@ resetMenuFormBtn.addEventListener('click', resetMenuForm);
 if (resetTableFormBtn) {
   resetTableFormBtn.addEventListener('click', resetTableForm);
 }
-refreshOrdersBtn.addEventListener('click', () => {
-  refreshOrdersAndReport();
-});
+if (refreshOrdersBtn) {
+  refreshOrdersBtn.addEventListener('click', () => {
+    refreshOrdersAndReport();
+  });
+}
 
 if (printQrBtn) {
   printQrBtn.addEventListener('click', printAllQrs);
 }
+
+setTableFormMode(false);
 
 ensureSession().then((ok) => {
   if (!ok) return;

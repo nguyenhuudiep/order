@@ -1223,9 +1223,90 @@ app.get('/api/store/tables', requireStore, async (req, res) => {
 });
 
 app.post('/api/store/tables', requireStore, async (req, res) => {
-  const { tableNumber, qrToken, isActive } = req.body;
+  const { tableNumber, qrToken, quantity, isActive } = req.body;
   const normalizedTable = String(tableNumber || '').trim().toUpperCase();
   const normalizedToken = String(qrToken || `QR-${Date.now()}-${Math.floor(Math.random() * 1000)}`).trim().toUpperCase();
+  const hasQuantityInput = quantity !== undefined && quantity !== null && String(quantity).trim() !== '';
+  const parsedQuantity = Number(quantity);
+  const activeFlag = isActive === undefined ? true : Boolean(isActive);
+
+  if (hasQuantityInput) {
+    if (!Number.isInteger(parsedQuantity) || parsedQuantity <= 0 || parsedQuantity > 200) {
+      return res.status(400).json({ message: 'Số lượng bàn phải là số nguyên từ 1 đến 200.' });
+    }
+
+    try {
+      const connection = await getPool();
+      const storeId = req.session.adminUser.storeId;
+      const existingResult = await connection.request()
+        .input('storeId', sql.Int, storeId)
+        .query(`
+          SELECT TableNumber
+          FROM dbo.StoreTables
+          WHERE StoreId = @storeId
+        `);
+
+      const existingNumbers = new Set(
+        existingResult.recordset.map((row) => String(row.TableNumber || '').trim().toUpperCase()).filter(Boolean)
+      );
+      const numericValues = [];
+      existingNumbers.forEach((value) => {
+        if (/^\d+$/.test(value)) {
+          numericValues.push(Number(value));
+        }
+      });
+
+      let nextNumber = numericValues.length ? Math.max(...numericValues) : existingNumbers.size;
+      const transaction = new sql.Transaction(connection);
+      await transaction.begin();
+
+      const createdRows = [];
+      try {
+        for (let i = 0; i < parsedQuantity; i += 1) {
+          do {
+            nextNumber += 1;
+          } while (existingNumbers.has(String(nextNumber)));
+
+          const autoTableNumber = String(nextNumber);
+          existingNumbers.add(autoTableNumber);
+          const autoQrToken = `QR-${Date.now()}-${Math.floor(Math.random() * 1000000)}-${nextNumber}`;
+
+          const insertResult = await new sql.Request(transaction)
+            .input('storeId', sql.Int, storeId)
+            .input('tableNumber', sql.NVarChar(40), autoTableNumber)
+            .input('qrToken', sql.NVarChar(120), autoQrToken)
+            .input('isActive', sql.Bit, activeFlag)
+            .query(`
+              INSERT INTO dbo.StoreTables (StoreId, TableNumber, QrToken, IsActive)
+              OUTPUT INSERTED.Id, INSERTED.StoreId, INSERTED.TableNumber, INSERTED.QrToken, INSERTED.IsActive, INSERTED.CreatedAt
+              VALUES (@storeId, @tableNumber, @qrToken, @isActive)
+            `);
+
+          createdRows.push(insertResult.recordset[0]);
+        }
+
+        await transaction.commit();
+      } catch (txError) {
+        await transaction.rollback();
+        throw txError;
+      }
+
+      const mappedTables = await Promise.all(createdRows.map((table) => mapTableWithQr(req, table)));
+      const firstTable = mappedTables[0]?.TableNumber;
+      const lastTable = mappedTables[mappedTables.length - 1]?.TableNumber;
+
+      return res.status(201).json({
+        message: `Đã tạo ${mappedTables.length} bàn mới (${firstTable} - ${lastTable}).`,
+        tables: mappedTables
+      });
+    } catch (error) {
+      if (error.number === 2627 || error.number === 2601) {
+        return res.status(409).json({ message: 'Số bàn hoặc mã QR đã tồn tại.' });
+      }
+      console.error(error);
+      return res.status(500).json({ message: 'Không tạo được bàn.' });
+    }
+  }
 
   if (!normalizedTable) {
     return res.status(400).json({ message: 'Dữ liệu bàn không hợp lệ.' });
@@ -1237,7 +1318,7 @@ app.post('/api/store/tables', requireStore, async (req, res) => {
       .input('storeId', sql.Int, req.session.adminUser.storeId)
       .input('tableNumber', sql.NVarChar(40), normalizedTable)
       .input('qrToken', sql.NVarChar(120), normalizedToken)
-      .input('isActive', sql.Bit, Boolean(isActive))
+      .input('isActive', sql.Bit, activeFlag)
       .query(`
         INSERT INTO dbo.StoreTables (StoreId, TableNumber, QrToken, IsActive)
         OUTPUT INSERTED.Id, INSERTED.StoreId, INSERTED.TableNumber, INSERTED.QrToken, INSERTED.IsActive, INSERTED.CreatedAt
@@ -1472,6 +1553,11 @@ app.delete('/api/platform/stores/:id', requirePlatform, async (req, res) => {
       return res.status(404).json({ message: 'Không tìm thấy cửa hàng.' });
     }
 
+    // Delete all users linked to the store first (any role), then clear operational data.
+    await new sql.Request(transaction)
+      .input('storeId', sql.Int, storeId)
+      .query('DELETE FROM dbo.AdminUsers WHERE StoreId = @storeId');
+
     await new sql.Request(transaction)
       .input('storeId', sql.Int, storeId)
       .query(`
@@ -1487,25 +1573,23 @@ app.delete('/api/platform/stores/:id', requirePlatform, async (req, res) => {
 
     await new sql.Request(transaction)
       .input('storeId', sql.Int, storeId)
-      .query('DELETE FROM dbo.MenuItems WHERE StoreId = @storeId');
-
-    await new sql.Request(transaction)
-      .input('storeId', sql.Int, storeId)
       .query('DELETE FROM dbo.StoreTables WHERE StoreId = @storeId');
 
     await new sql.Request(transaction)
       .input('storeId', sql.Int, storeId)
-      .query("DELETE FROM dbo.AdminUsers WHERE StoreId = @storeId AND Role = N'store'");
+      .query('DELETE FROM dbo.MenuItems WHERE StoreId = @storeId');
 
     await new sql.Request(transaction)
       .input('storeId', sql.Int, storeId)
       .query('DELETE FROM dbo.Stores WHERE Id = @storeId');
 
     await transaction.commit();
-    return res.json({ message: 'Xóa cửa hàng thành công.' });
+    return res.json({ message: 'Đã xóa toàn bộ dữ liệu cửa hàng (tài khoản, bàn, menu, đơn hàng).' });
   } catch (error) {
-    if (transaction._aborted !== true) {
+    try {
       await transaction.rollback();
+    } catch {
+      // ignore rollback errors
     }
     console.error(error);
     return res.status(500).json({ message: 'Không xóa được cửa hàng.' });
