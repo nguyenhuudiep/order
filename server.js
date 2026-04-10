@@ -1294,10 +1294,12 @@ app.post('/api/store/tables', requireStore, async (req, res) => {
       const mappedTables = await Promise.all(createdRows.map((table) => mapTableWithQr(req, table)));
       const firstTable = mappedTables[0]?.TableNumber;
       const lastTable = mappedTables[mappedTables.length - 1]?.TableNumber;
+      const createdTableNumbers = mappedTables.map((table) => table.TableNumber);
 
       return res.status(201).json({
-        message: `Đã tạo ${mappedTables.length} bàn mới (${firstTable} - ${lastTable}).`,
-        tables: mappedTables
+        message: `Đã tạo ${mappedTables.length} bàn mới (${firstTable} - ${lastTable}). Số bàn: ${createdTableNumbers.join(', ')}.`,
+        tables: mappedTables,
+        createdTableNumbers
       });
     } catch (error) {
       if (error.number === 2627 || error.number === 2601) {

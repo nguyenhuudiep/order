@@ -670,9 +670,11 @@ tableForm.addEventListener('submit', async (event) => {
   tableMessageEl.textContent = result.message;
   if (response.ok) {
     if (!isEditMode && Array.isArray(result.tables) && result.tables.length) {
-      const firstTable = result.tables[0]?.TableNumber;
-      const lastTable = result.tables[result.tables.length - 1]?.TableNumber;
-      showToast(`Đã tạo ${result.tables.length} bàn (${firstTable} - ${lastTable}).`, 'success');
+      const createdNumbers = Array.isArray(result.createdTableNumbers) && result.createdTableNumbers.length
+        ? result.createdTableNumbers
+        : result.tables.map((table) => table.TableNumber);
+      tableMessageEl.textContent = `Đã tạo thêm bàn: ${createdNumbers.join(', ')}.`;
+      showToast(`Đã tạo thêm bàn: ${createdNumbers.join(', ')}.`, 'success');
     } else if (result.table && !isEditMode) {
       showToast(`Đã tạo bàn ${result.table.TableNumber} và sinh QR thành công.`, 'success');
     } else if (result.table && isEditMode) {
