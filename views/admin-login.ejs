@@ -69,7 +69,7 @@
         return;
       }
 
-      window.location.href = '/admin';
+      window.location.replace(`/admin?_ts=${Date.now()}`);
     });
   </script>
 </body>

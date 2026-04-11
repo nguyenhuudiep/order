@@ -52,7 +52,13 @@ function showToast(message, variant = 'info') {
 }
 
 async function ensureSession() {
-  const response = await fetch('/api/admin/session');
+  const response = await fetch('/api/admin/session', {
+    cache: 'no-store',
+    headers: {
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      Pragma: 'no-cache'
+    }
+  });
   if (!response.ok) {
     window.location.href = '/admin/login';
     return false;

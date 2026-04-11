@@ -307,6 +307,9 @@ app.get('/scan/:token', (req, res) => {
 });
 
 app.get('/admin/login', (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
   if (req.session.adminUser) {
     return res.redirect('/admin');
   }
@@ -334,6 +337,9 @@ app.use((req, res, next) => {
 });
 
 app.get('/admin', requireAuth, (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
   if (req.session.adminUser.role === 'platform') {
     return res.render('platform-admin');
   }
@@ -349,6 +355,9 @@ app.get('/admin/invoice/:id', requireAuth, (req, res) => {
 });
 
 app.get('/api/admin/session', (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
   if (!req.session.adminUser) {
     return res.status(401).json({ loggedIn: false });
   }
@@ -476,6 +485,10 @@ app.post('/api/admin/login', async (req, res) => {
 
 app.post('/api/admin/logout', (req, res) => {
   req.session.destroy(() => {
+    res.clearCookie('connect.sid');
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
     res.json({ message: 'Đã đăng xuất.' });
   });
 });
