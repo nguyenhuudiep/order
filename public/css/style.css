@@ -436,39 +436,6 @@ textarea {
   border-top: 1px dashed rgba(31, 36, 40, 0.16);
 }
 
-.customer-live-summary {
-  position: sticky;
-  top: 10px;
-  z-index: 4;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 10px;
-  margin-bottom: 12px;
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(255, 247, 238, 0.93)),
-    linear-gradient(220deg, rgba(219, 93, 42, 0.09), rgba(219, 93, 42, 0));
-}
-
-.summary-chip {
-  border: 1px solid rgba(219, 93, 42, 0.2);
-  border-radius: 14px;
-  padding: 10px;
-  background: rgba(255, 255, 255, 0.86);
-}
-
-.summary-chip p {
-  margin: 0;
-  color: #7a4a34;
-  font-size: 0.86rem;
-  font-weight: 700;
-}
-
-.summary-chip h3 {
-  margin: 6px 0 0;
-  color: var(--accent-deep);
-}
-
 .customer-menu-tools {
   display: grid;
   gap: 8px;
@@ -492,13 +459,13 @@ textarea {
   }
 }
 
-.customer-grid > .panel:first-child {
+.customer-menu-panel {
   background:
     linear-gradient(155deg, rgba(255, 255, 255, 0.9), rgba(244, 249, 255, 0.84)),
     linear-gradient(200deg, rgba(64, 143, 195, 0.06), rgba(64, 143, 195, 0));
 }
 
-.customer-grid > .panel:last-child {
+.customer-cart-panel {
   background:
     linear-gradient(155deg, rgba(255, 255, 255, 0.96), rgba(255, 247, 238, 0.92)),
     linear-gradient(200deg, rgba(219, 93, 42, 0.08), rgba(219, 93, 42, 0));
@@ -506,7 +473,7 @@ textarea {
   box-shadow: 0 20px 46px rgba(171, 63, 21, 0.14);
 }
 
-.customer-grid > .panel:last-child .total {
+.customer-cart-panel .total {
   font-size: 1.28rem;
   color: var(--accent-deep);
 }
@@ -1280,12 +1247,6 @@ textarea {
     left: 12px;
     right: 12px;
     width: auto;
-  }
-
-  .customer-live-summary {
-    top: 6px;
-    grid-template-columns: 1fr;
-    gap: 8px;
   }
 
   .customer-menu-scroll {

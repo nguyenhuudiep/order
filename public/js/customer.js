@@ -8,8 +8,6 @@ const tableContextEl = document.getElementById('table-context');
 const orderStatusPanelEl = document.getElementById('order-status-panel');
 const orderStatusValueEl = document.getElementById('order-status-value');
 const customerOrderHistoryEl = document.getElementById('customer-order-history');
-const outstandingTotalTopEl = document.getElementById('outstanding-total-top');
-const placedOrderCountEl = document.getElementById('placed-order-count');
 const realtimeBadgeEl = document.getElementById('realtime-badge');
 const menuSearchEl = document.getElementById('menu-search');
 const menuFilterEl = document.getElementById('menu-filter');
@@ -222,16 +220,6 @@ function renderOrderHistory(orders) {
   }).join('');
 }
 
-function updateTopOrderSummary(orderCount, outstandingTotal) {
-  if (placedOrderCountEl) {
-    placedOrderCountEl.textContent = String(orderCount || 0);
-  }
-
-  if (outstandingTotalTopEl) {
-    outstandingTotalTopEl.textContent = formatMoney(outstandingTotal || 0);
-  }
-}
-
 async function fetchOrderHistory() {
   if (!tableToken || !customerOrderHistoryEl) return;
 
@@ -247,9 +235,6 @@ async function fetchOrderHistory() {
     const activeOrders = orders.filter((order) => String(order.Status || '').toLowerCase() !== 'cancelled');
     hasActiveOrders = activeOrders.length > 0;
     renderOrderHistory(activeOrders);
-    const fallbackOutstanding = activeOrders.reduce((sum, order) => sum + Number(order.TotalAmount || 0), 0);
-    const serverOutstanding = Number(result.outstandingTotal || 0);
-    updateTopOrderSummary(activeOrders.length, serverOutstanding || fallbackOutstanding);
 
     const latest = activeOrders[0];
     if (!latest) {
