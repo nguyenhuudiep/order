@@ -8,11 +8,16 @@ const tableContextEl = document.getElementById('table-context');
 const orderStatusPanelEl = document.getElementById('order-status-panel');
 const orderStatusValueEl = document.getElementById('order-status-value');
 const customerOrderHistoryEl = document.getElementById('customer-order-history');
-const outstandingTotalEl = document.getElementById('outstanding-total');
+const outstandingTotalTopEl = document.getElementById('outstanding-total-top');
+const placedOrderCountEl = document.getElementById('placed-order-count');
 const realtimeBadgeEl = document.getElementById('realtime-badge');
+const menuSearchEl = document.getElementById('menu-search');
+const menuFilterEl = document.getElementById('menu-filter');
 
 const cart = new Map();
 let menuItems = [];
+let selectedMenuCategory = 'all';
+let menuKeyword = '';
 let tableToken = '';
 let activeOrderId = null;
 let statusSyncTimer = null;
@@ -81,12 +86,24 @@ async function fetchMenu() {
 function renderMenu() {
   menuListEl.innerHTML = '';
 
-  if (!menuItems.length) {
+  const filteredMenuItems = menuItems.filter((item) => {
+    if (selectedMenuCategory !== 'all' && item.Category !== selectedMenuCategory) {
+      return false;
+    }
+
+    if (!menuKeyword) {
+      return true;
+    }
+
+    return String(item.Name || '').toLowerCase().includes(menuKeyword);
+  });
+
+  if (!filteredMenuItems.length) {
     menuListEl.innerHTML = '<p>Chưa có món đang bán.</p>';
     return;
   }
 
-  menuItems.forEach((item) => {
+  filteredMenuItems.forEach((item) => {
     const card = document.createElement('div');
     card.className = 'item-card';
     card.innerHTML = `
@@ -205,6 +222,16 @@ function renderOrderHistory(orders) {
   }).join('');
 }
 
+function updateTopOrderSummary(orderCount, outstandingTotal) {
+  if (placedOrderCountEl) {
+    placedOrderCountEl.textContent = String(orderCount || 0);
+  }
+
+  if (outstandingTotalTopEl) {
+    outstandingTotalTopEl.textContent = formatMoney(outstandingTotal || 0);
+  }
+}
+
 async function fetchOrderHistory() {
   if (!tableToken || !customerOrderHistoryEl) return;
 
@@ -220,11 +247,9 @@ async function fetchOrderHistory() {
     const activeOrders = orders.filter((order) => String(order.Status || '').toLowerCase() !== 'cancelled');
     hasActiveOrders = activeOrders.length > 0;
     renderOrderHistory(activeOrders);
-    if (outstandingTotalEl) {
-      const fallbackOutstanding = activeOrders.reduce((sum, order) => sum + Number(order.TotalAmount || 0), 0);
-      const serverOutstanding = Number(result.outstandingTotal || 0);
-      outstandingTotalEl.textContent = formatMoney(serverOutstanding || fallbackOutstanding);
-    }
+    const fallbackOutstanding = activeOrders.reduce((sum, order) => sum + Number(order.TotalAmount || 0), 0);
+    const serverOutstanding = Number(result.outstandingTotal || 0);
+    updateTopOrderSummary(activeOrders.length, serverOutstanding || fallbackOutstanding);
 
     const latest = activeOrders[0];
     if (!latest) {
@@ -356,6 +381,27 @@ orderForm.addEventListener('submit', async (event) => {
   cart.clear();
   renderCart();
 });
+
+if (menuSearchEl) {
+  menuSearchEl.addEventListener('input', () => {
+    menuKeyword = String(menuSearchEl.value || '').trim().toLowerCase();
+    renderMenu();
+  });
+}
+
+if (menuFilterEl) {
+  menuFilterEl.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-menu-filter]');
+    if (!button) return;
+
+    selectedMenuCategory = button.getAttribute('data-menu-filter') || 'all';
+    menuFilterEl.querySelectorAll('[data-menu-filter]').forEach((node) => {
+      const isActive = node.getAttribute('data-menu-filter') === selectedMenuCategory;
+      node.classList.toggle('active', isActive);
+    });
+    renderMenu();
+  });
+}
 
 async function init() {
   tableToken = getTableTokenFromUrl();

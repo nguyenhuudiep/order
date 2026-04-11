@@ -15,10 +15,31 @@
       <p id="realtime-badge" class="badge">Realtime: đang kết nối...</p>
     </section>
 
+    <section class="panel customer-live-summary" aria-live="polite">
+      <article class="summary-chip">
+        <p>Số đơn đã đặt</p>
+        <h3 id="placed-order-count">0</h3>
+      </article>
+      <article class="summary-chip">
+        <p>Tổng cần thanh toán</p>
+        <h3><span id="outstanding-total-top">0</span> VND</h3>
+      </article>
+    </section>
+
     <section class="grid customer-grid">
       <div class="panel">
         <h2>Danh sách món</h2>
-        <div id="menu-list" class="menu-list"></div>
+        <div class="customer-menu-tools">
+          <input id="menu-search" placeholder="Tìm món nhanh" />
+          <div id="menu-filter" class="row-actions">
+            <button type="button" class="small secondary" data-menu-filter="all">Tất cả</button>
+            <button type="button" class="small secondary" data-menu-filter="food">Đồ ăn</button>
+            <button type="button" class="small secondary" data-menu-filter="drink">Đồ uống</button>
+          </div>
+        </div>
+        <div class="customer-menu-scroll">
+          <div id="menu-list" class="menu-list"></div>
+        </div>
       </div>
 
       <div class="panel">
@@ -41,7 +62,6 @@
         <section class="customer-history-wrap">
           <h3>Lịch sử đơn tại bàn</h3>
           <p class="hint">Đơn sẽ được giữ ở đây cho đến khi cửa hàng bấm đã thanh toán.</p>
-          <p class="total">Tổng cần thanh toán: <span id="outstanding-total">0</span> VND</p>
           <div id="customer-order-history" class="orders-list"></div>
         </section>
       </div>

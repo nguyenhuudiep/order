@@ -138,6 +138,13 @@ function formatMoney(value) {
   return Number(value).toLocaleString('vi-VN');
 }
 
+function formatDateTime(value) {
+  if (!value) return '-';
+  const dt = new Date(value);
+  if (Number.isNaN(dt.getTime())) return '-';
+  return dt.toLocaleString('vi-VN');
+}
+
 function renderMoney(value, tone = 'warm') {
   return `<span class="money money-${tone}">${formatMoney(value)} VND</span>`;
 }
@@ -749,6 +756,7 @@ async function fetchOrders() {
       </div>
       <div class="order-row-meta">
         <p class="order-line"><strong>Tổng:</strong> ${renderMoney(order.TotalAmount, 'sun')}</p>
+        <p class="order-line"><strong>Thời gian đặt:</strong> ${formatDateTime(order.CreatedAt)}</p>
         <p class="order-line"><strong>Trạng thái:</strong> <span class="status-pill status-${order.Status}">${statusMap[order.Status] || order.Status}</span></p>
       </div>
       ${statusActionsHtml}
