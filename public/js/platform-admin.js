@@ -22,6 +22,23 @@ const tablesListEl = document.getElementById('tables-list');
 let stores = [];
 let currentAdminUser = null;
 
+function withNoCache(url) {
+  const separator = url.includes('?') ? '&' : '?';
+  return `${url}${separator}_ts=${Date.now()}`;
+}
+
+async function fetchJsonNoCache(url) {
+  const response = await fetch(withNoCache(url), {
+    cache: 'no-store',
+    headers: {
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      Pragma: 'no-cache'
+    }
+  });
+  const result = await response.json().catch(() => ({}));
+  return { response, result };
+}
+
 function showToast(message, variant = 'info') {
   if (!toastContainerEl) return;
   const toast = document.createElement('div');
@@ -115,8 +132,7 @@ function resetStoreForm() {
 }
 
 async function fetchStores() {
-  const response = await fetch('/api/platform/stores');
-  const data = await response.json();
+  const { response, result: data } = await fetchJsonNoCache('/api/platform/stores');
 
   if (!response.ok) {
     storesListEl.innerHTML = `<p>${data.message || 'Không tải được cửa hàng.'}</p>`;
@@ -176,8 +192,8 @@ async function fetchStores() {
         if (String(storeForm.id.value) === String(storeId)) {
           resetStoreForm();
         }
-        fetchStores();
-        fetchStoreUsers();
+        await fetchStores();
+        await fetchStoreUsers();
       }
     });
   });
@@ -214,13 +230,12 @@ storeForm.addEventListener('submit', async (event) => {
   storeMessageEl.textContent = result.message;
   if (response.ok) {
     resetStoreForm();
-    fetchStores();
+    await fetchStores();
   }
 });
 
 async function fetchTables(storeId) {
-  const response = await fetch(`/api/platform/stores/${storeId}/tables`);
-  const tables = await response.json();
+  const { response, result: tables } = await fetchJsonNoCache(`/api/platform/stores/${storeId}/tables`);
 
   if (!response.ok) {
     tablesListEl.innerHTML = `<p>${tables.message || 'Không tải được bàn.'}</p>`;
@@ -263,8 +278,7 @@ tableStoreSelect.addEventListener('change', () => {
 });
 
 async function fetchStoreUsers() {
-  const response = await fetch('/api/platform/store-users');
-  const users = await response.json();
+  const { response, result: users } = await fetchJsonNoCache('/api/platform/store-users');
 
   if (!response.ok) {
     storeUsersListEl.innerHTML = `<p>${users.message || 'Không tải được tài khoản cửa hàng.'}</p>`;
@@ -359,7 +373,7 @@ storeUserForm.addEventListener('submit', async (event) => {
   if (response.ok) {
     storeUserForm.reset();
     storeUserForm.isActive.checked = true;
-    fetchStoreUsers();
+    await fetchStoreUsers();
   }
 });
 

@@ -1126,6 +1126,9 @@ app.patch('/api/store/orders/:id/paid', requireStore, async (req, res) => {
 });
 
 app.get('/api/store/menu', requireStore, async (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
   try {
     const connection = await getPool();
     const result = await connection.request()
@@ -1243,6 +1246,9 @@ app.delete('/api/store/menu/:id', requireStore, async (req, res) => {
 });
 
 app.get('/api/store/tables', requireStore, async (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
   try {
     const connection = await getPool();
     const result = await connection.request()
@@ -1483,6 +1489,9 @@ app.delete('/api/store/tables/:id', requireStore, async (req, res) => {
 });
 
 app.get('/api/platform/stores', requirePlatform, async (_req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
   try {
     const connection = await getPool();
     const result = await connection.request().query(`
@@ -1639,6 +1648,9 @@ app.delete('/api/platform/stores/:id', requirePlatform, async (req, res) => {
 });
 
 app.get('/api/platform/stores/:id/tables', requirePlatform, async (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
   const storeId = Number(req.params.id);
   if (!Number.isInteger(storeId)) {
     return res.status(400).json({ message: 'ID cửa hàng không hợp lệ.' });
@@ -1664,6 +1676,9 @@ app.get('/api/platform/stores/:id/tables', requirePlatform, async (req, res) => 
 });
 
 app.get('/api/platform/store-users', requirePlatform, async (_req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
   try {
     const connection = await getPool();
     const result = await connection.request().query(`

@@ -516,8 +516,7 @@ function applyOrderStatusOnCard(card, nextStatus) {
 }
 
 async function fetchTables() {
-  const response = await fetch('/api/store/tables');
-  const tables = await response.json();
+  const { response, result: tables } = await fetchJsonNoCache('/api/store/tables');
 
   if (!response.ok) {
     tablesListEl.innerHTML = `<p>${tables.message || 'Không tải được danh sách bàn.'}</p>`;
@@ -528,8 +527,7 @@ async function fetchTables() {
 }
 
 async function fetchMenu() {
-  const response = await fetch('/api/store/menu');
-  const data = await response.json();
+  const { response, result: data } = await fetchJsonNoCache('/api/store/menu');
 
   adminMenuListEl.innerHTML = '';
   if (!response.ok) {
@@ -566,7 +564,7 @@ async function fetchMenu() {
       const deleteRes = await fetch(`/api/store/menu/${item.Id}`, { method: 'DELETE' });
       const deleteResult = await deleteRes.json();
       menuMessageEl.textContent = deleteResult.message;
-      if (deleteRes.ok) fetchMenu();
+      if (deleteRes.ok) await fetchMenu();
     });
 
     adminMenuListEl.appendChild(card);
@@ -626,7 +624,7 @@ menuForm.addEventListener('submit', async (event) => {
   menuMessageEl.textContent = result.message;
   if (response.ok) {
     resetMenuForm();
-    fetchMenu();
+    await fetchMenu();
   }
 });
 
@@ -681,7 +679,7 @@ tableForm.addEventListener('submit', async (event) => {
       showToast(`Đã cập nhật bàn ${result.table.TableNumber}.`, 'success');
     }
     resetTableForm();
-    fetchTables();
+    await fetchTables();
   }
 });
 
