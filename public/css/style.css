@@ -423,6 +423,82 @@ textarea {
   background: rgba(255, 255, 255, 0.78);
 }
 
+.drink-categories-panel {
+  padding-top: 16px;
+}
+
+.drink-category-form-inline {
+  grid-template-columns: minmax(220px, 1fr) auto;
+}
+
+.drink-categories-list {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(210px, 240px);
+  gap: 10px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 4px 8px;
+  scroll-snap-type: x proximity;
+}
+
+.drink-categories-list::-webkit-scrollbar {
+  height: 8px;
+}
+
+.drink-categories-list::-webkit-scrollbar-thumb {
+  background: rgba(23, 34, 44, 0.22);
+  border-radius: 999px;
+}
+
+.drink-categories-empty {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.drink-category-chip {
+  border: 1px solid rgba(31, 36, 40, 0.12);
+  border-radius: 14px;
+  background: var(--panel-strong);
+  box-shadow: 0 8px 18px rgba(31, 36, 40, 0.08);
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  scroll-snap-align: start;
+}
+
+.drink-category-chip h4,
+.drink-category-chip p {
+  margin: 0;
+}
+
+.drink-category-chip h4 {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.drink-category-chip p {
+  font-size: 0.9rem;
+}
+
+.drink-category-actions {
+  margin-top: 2px;
+}
+
+@media (max-width: 640px) {
+  .drink-category-form-inline {
+    grid-template-columns: 1fr;
+  }
+
+  .drink-categories-list {
+    grid-auto-columns: minmax(180px, 78vw);
+  }
+}
+
 .badge {
   background: var(--accent-soft);
   border: 1px solid rgba(219, 93, 42, 0.18);

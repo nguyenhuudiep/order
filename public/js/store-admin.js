@@ -2,6 +2,10 @@ const menuForm = document.getElementById('menu-form');
 const resetMenuFormBtn = document.getElementById('reset-menu-form');
 const menuMessageEl = document.getElementById('menu-message');
 const adminMenuListEl = document.getElementById('admin-menu-list');
+const drinkCategoryForm = document.getElementById('drink-category-form');
+const resetDrinkCategoryFormBtn = document.getElementById('reset-drink-category-form');
+const drinkCategoryMessageEl = document.getElementById('drink-category-message');
+const drinkCategoriesListEl = document.getElementById('drink-categories-list');
 const tableForm = document.getElementById('table-form');
 const resetTableFormBtn = document.getElementById('reset-table-form');
 const tableSubmitBtn = document.getElementById('table-submit-btn');
@@ -54,6 +58,7 @@ let currentTables = [];
 let menuLoaded = false;
 let tablesLoaded = false;
 let currentAdminUser = null;
+let drinkCategories = [];
 const ORDERS_PAGE_SIZE = 10;
 let currentOrdersPage = 1;
 let storeSyncTimer = null;
@@ -193,6 +198,104 @@ function escapeHtml(value) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function getDrinkCategoryLabel(code, fallbackName = '') {
+  if (fallbackName) return fallbackName;
+  const matched = drinkCategories.find((item) => item.Code === code);
+  return matched?.Name || 'Đồ uống';
+}
+
+function renderDrinkCategoryOptions(selectedCode = '') {
+  if (!menuForm?.drinkCategory) return;
+
+  const options = ['<option value="" disabled>Chọn loại đồ uống</option>'];
+  drinkCategories.forEach((item) => {
+    const selectedAttr = selectedCode && selectedCode === item.Code ? ' selected' : '';
+    options.push(`<option value="${item.Code}"${selectedAttr}>${escapeHtml(item.Name)}</option>`);
+  });
+
+  if (selectedCode && !drinkCategories.some((item) => item.Code === selectedCode)) {
+    options.push(`<option value="${selectedCode}" selected>${escapeHtml(selectedCode)}</option>`);
+  }
+
+  menuForm.drinkCategory.innerHTML = options.join('');
+  if (!selectedCode) {
+    menuForm.drinkCategory.value = '';
+  }
+}
+
+function resetDrinkCategoryForm() {
+  if (!drinkCategoryForm) return;
+  drinkCategoryForm.reset();
+  drinkCategoryForm.id.value = '';
+}
+
+function renderDrinkCategories() {
+  if (!drinkCategoriesListEl) return;
+
+  if (!drinkCategories.length) {
+    drinkCategoriesListEl.innerHTML = '<p class="drink-categories-empty">Chưa có loại đồ uống.</p>';
+    return;
+  }
+
+  drinkCategoriesListEl.innerHTML = drinkCategories.map((item) => `
+    <article class="drink-category-chip">
+      <h4 title="${escapeHtml(item.Name)}">${escapeHtml(item.Name)}</h4>
+      <p><strong>Mã:</strong> ${escapeHtml(item.Code)}</p>
+      <div class="row-actions drink-category-actions">
+        <button type="button" class="small" data-edit-drink-category="${item.Id}">Sửa</button>
+        <button type="button" class="small secondary" data-delete-drink-category="${item.Id}">Xóa</button>
+      </div>
+    </article>
+  `).join('');
+
+  drinkCategoriesListEl.querySelectorAll('[data-edit-drink-category]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const item = drinkCategories.find((category) => Number(category.Id) === Number(button.getAttribute('data-edit-drink-category')));
+      if (!item) return;
+      drinkCategoryForm.id.value = item.Id;
+      drinkCategoryForm.name.value = item.Name;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  });
+
+  drinkCategoriesListEl.querySelectorAll('[data-delete-drink-category]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const item = drinkCategories.find((category) => Number(category.Id) === Number(button.getAttribute('data-delete-drink-category')));
+      if (!item) return;
+
+      const ok = confirm(`Xóa loại đồ uống ${item.Name}?`);
+      if (!ok) return;
+
+      const response = await fetch(`/api/store/drink-categories/${item.Id}`, {
+        method: 'DELETE'
+      });
+      const result = await response.json().catch(() => ({}));
+      if (drinkCategoryMessageEl) {
+        drinkCategoryMessageEl.textContent = result.message || 'Không xóa được loại đồ uống.';
+      }
+
+      if (response.ok) {
+        await fetchDrinkCategories();
+        await fetchMenu();
+      }
+    });
+  });
+}
+
+async function fetchDrinkCategories() {
+  if (!drinkCategoriesListEl) return;
+
+  const { response, result } = await fetchJsonNoCache('/api/store/drink-categories');
+  if (!response.ok) {
+    drinkCategoriesListEl.innerHTML = `<p>${result.message || 'Không tải được loại đồ uống.'}</p>`;
+    return;
+  }
+
+  drinkCategories = Array.isArray(result) ? result : [];
+  renderDrinkCategoryOptions(menuForm?.drinkCategory?.value || '');
+  renderDrinkCategories();
 }
 
 function downloadQrImage(dataUrl, tableNumber) {
@@ -357,11 +460,28 @@ async function updateOwnProfile() {
   }
 }
 
+const drinkCategoryFieldEl = document.getElementById('drink-category-field');
+
+function updateDrinkCategoryVisibility() {
+  if (menuForm.category.value === 'drink') {
+    drinkCategoryFieldEl.style.display = '';
+    if (!menuForm.drinkCategory.value && drinkCategories.length) {
+      menuForm.drinkCategory.value = drinkCategories[0].Code;
+    }
+  } else {
+    drinkCategoryFieldEl.style.display = 'none';
+  }
+}
+
+menuForm.category.addEventListener('change', updateDrinkCategoryVisibility);
+
 function resetMenuForm() {
   menuForm.reset();
   menuForm.id.value = '';
   menuForm.price.value = '';
   menuForm.isAvailable.checked = true;
+  renderDrinkCategoryOptions('');
+  updateDrinkCategoryVisibility();
 }
 
 function resetTableForm() {
@@ -551,10 +671,13 @@ async function fetchMenu() {
   data.forEach((item) => {
     const card = document.createElement('div');
     card.className = 'item-card';
+    const categoryLabel = item.Category === 'food'
+      ? 'Đồ ăn'
+      : getDrinkCategoryLabel(item.DrinkCategory, item.DrinkCategoryName || '');
     card.innerHTML = `
       <div>
         <h4>${item.Name}</h4>
-        <p>${item.Category === 'food' ? 'Đồ ăn' : 'Đồ uống'} - ${renderMoney(item.Price, 'rose')} - ${item.IsAvailable ? 'Đang bán' : 'Tạm ẩn'}</p>
+        <p>${categoryLabel} - ${renderMoney(item.Price, 'rose')} - ${item.IsAvailable ? 'Đang bán' : 'Tạm ẩn'}</p>
       </div>
       <div class="row-actions">
         <button data-edit="${item.Id}">Sửa</button>
@@ -566,6 +689,8 @@ async function fetchMenu() {
       menuForm.id.value = item.Id;
       menuForm.name.value = item.Name;
       menuForm.category.value = item.Category;
+      renderDrinkCategoryOptions(item.DrinkCategory || '');
+      updateDrinkCategoryVisibility();
       menuForm.price.value = formatMoney(item.Price);
       menuForm.isAvailable.checked = Boolean(item.IsAvailable);
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -616,9 +741,15 @@ menuForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   menuMessageEl.textContent = '';
 
+  if (menuForm.category.value === 'drink' && !menuForm.drinkCategory.value) {
+    menuMessageEl.textContent = 'Vui lòng chọn loại đồ uống trước khi lưu món.';
+    return;
+  }
+
   const payload = {
     name: menuForm.name.value,
     category: menuForm.category.value,
+    drinkCategory: menuForm.category.value === 'drink' ? menuForm.drinkCategory.value : null,
     price: parseMoneyInput(menuForm.price.value),
     isAvailable: menuForm.isAvailable.checked
   };
@@ -640,6 +771,43 @@ menuForm.addEventListener('submit', async (event) => {
     await fetchMenu();
   }
 });
+
+if (drinkCategoryForm) {
+  drinkCategoryForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (drinkCategoryMessageEl) drinkCategoryMessageEl.textContent = '';
+
+    const payload = {
+      name: String(drinkCategoryForm.name.value || '').trim()
+    };
+
+    if (!payload.name) {
+      if (drinkCategoryMessageEl) drinkCategoryMessageEl.textContent = 'Vui lòng nhập tên loại đồ uống.';
+      return;
+    }
+
+    const id = drinkCategoryForm.id.value;
+    const method = id ? 'PUT' : 'POST';
+    const url = id ? `/api/store/drink-categories/${id}` : '/api/store/drink-categories';
+
+    const response = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    const result = await response.json().catch(() => ({}));
+    if (drinkCategoryMessageEl) {
+      drinkCategoryMessageEl.textContent = result.message || 'Không lưu được loại đồ uống.';
+    }
+
+    if (response.ok) {
+      resetDrinkCategoryForm();
+      await fetchDrinkCategories();
+      await fetchMenu();
+    }
+  });
+}
 
 tableForm.addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -884,6 +1052,7 @@ function showTab(tabName) {
   });
 
   if (tabName === 'menu' && !menuLoaded) {
+    fetchDrinkCategories();
     fetchMenu();
     menuLoaded = true;
   }
@@ -981,6 +1150,9 @@ if (editProfileBtn) {
 }
 
 resetMenuFormBtn.addEventListener('click', resetMenuForm);
+if (resetDrinkCategoryFormBtn) {
+  resetDrinkCategoryFormBtn.addEventListener('click', resetDrinkCategoryForm);
+}
 if (resetTableFormBtn) {
   resetTableFormBtn.addEventListener('click', resetTableForm);
 }

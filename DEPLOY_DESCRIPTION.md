@@ -176,3 +176,6 @@ Moi lan thay doi code:
 - Khong dung tai khoan sa cho production neu co the
 - Gioi han quyen truy cap SQL account theo principle of least privilege
 - Luu tru backup DB truoc cac thay doi lon
+
+
+powershell -ExecutionPolicy Bypass -File ".\scripts\deploy-safe-order.ps1" -AppPath "D:\DIEP-NH\Copilot\apps\Order" -Branch "main" -ProcessName "order" -Port 5100 -EnvFile "D:\DIEP-NH\Copilot\apps\Order\.env.production"

@@ -29,6 +29,56 @@ const statusMap = {
   cancelled: 'Đã hủy'
 };
 
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function getDrinkCategoriesFromMenu() {
+  const map = new Map();
+  menuItems.forEach((item) => {
+    if (item.Category !== 'drink') return;
+    const code = String(item.DrinkCategory || '').trim();
+    if (!code) return;
+    const name = String(item.DrinkCategoryName || code).trim();
+    if (!map.has(code)) {
+      map.set(code, name);
+    }
+  });
+  return Array.from(map.entries()).map(([code, name]) => ({ code, name }));
+}
+
+function renderMenuFilters() {
+  if (!menuFilterEl) return;
+
+  const drinkCategories = getDrinkCategoriesFromMenu();
+  const hasSelected = selectedMenuCategory === 'all'
+    || selectedMenuCategory === 'food'
+    || selectedMenuCategory === 'drink'
+    || drinkCategories.some((item) => item.code === selectedMenuCategory);
+
+  if (!hasSelected) {
+    selectedMenuCategory = 'all';
+  }
+
+  const baseButtons = [
+    { value: 'all', label: 'Tất cả' },
+    { value: 'food', label: 'Đồ ăn' },
+    { value: 'drink', label: 'Đồ uống' }
+  ];
+
+  const allButtons = baseButtons.concat(drinkCategories.map((item) => ({ value: item.code, label: item.name })));
+
+  menuFilterEl.innerHTML = allButtons.map((button) => {
+    const isActive = button.value === selectedMenuCategory;
+    return `<button type="button" class="small secondary ${isActive ? 'active' : ''}" data-menu-filter="${escapeHtml(button.value)}">${escapeHtml(button.label)}</button>`;
+  }).join('');
+}
+
 function formatMoney(value) {
   return Number(value).toLocaleString('vi-VN');
 }
@@ -78,14 +128,23 @@ async function fetchMenu() {
   }
 
   menuItems = data.filter((item) => item.IsAvailable);
+  renderMenuFilters();
   renderMenu();
 }
 
 function renderMenu() {
   menuListEl.innerHTML = '';
 
+  const drinkCategoryCodeSet = new Set(getDrinkCategoriesFromMenu().map((entry) => entry.code));
+
   const filteredMenuItems = menuItems.filter((item) => {
-    if (selectedMenuCategory !== 'all' && item.Category !== selectedMenuCategory) {
+    if (selectedMenuCategory === 'all') {
+      // no filter
+    } else if (selectedMenuCategory === 'drink') {
+      if (item.Category !== 'drink') return false;
+    } else if (drinkCategoryCodeSet.has(selectedMenuCategory)) {
+      if (item.Category !== 'drink' || item.DrinkCategory !== selectedMenuCategory) return false;
+    } else if (item.Category !== selectedMenuCategory) {
       return false;
     }
 
@@ -104,10 +163,13 @@ function renderMenu() {
   filteredMenuItems.forEach((item) => {
     const card = document.createElement('div');
     card.className = 'item-card';
+    const categoryLabel = item.Category === 'food'
+      ? 'Đồ ăn'
+      : (item.DrinkCategoryName || item.DrinkCategory || 'Đồ uống');
     card.innerHTML = `
       <div>
         <h4>${item.Name}</h4>
-        <p>${item.Category === 'food' ? 'Đồ ăn' : 'Đồ uống'}</p>
+        <p>${categoryLabel}</p>
       </div>
       <div class="item-actions">
         <strong>${formatMoney(item.Price)} VND</strong>

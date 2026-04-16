@@ -10,6 +10,7 @@ GO
 IF OBJECT_ID(N'dbo.OrderItems', N'U') IS NOT NULL DROP TABLE dbo.OrderItems;
 IF OBJECT_ID(N'dbo.Orders', N'U') IS NOT NULL DROP TABLE dbo.Orders;
 IF OBJECT_ID(N'dbo.StoreTables', N'U') IS NOT NULL DROP TABLE dbo.StoreTables;
+IF OBJECT_ID(N'dbo.DrinkCategories', N'U') IS NOT NULL DROP TABLE dbo.DrinkCategories;
 IF OBJECT_ID(N'dbo.MenuItems', N'U') IS NOT NULL DROP TABLE dbo.MenuItems;
 IF OBJECT_ID(N'dbo.AdminUsers', N'U') IS NOT NULL DROP TABLE dbo.AdminUsers;
 IF OBJECT_ID(N'dbo.Stores', N'U') IS NOT NULL DROP TABLE dbo.Stores;
@@ -42,10 +43,22 @@ CREATE TABLE dbo.MenuItems (
     StoreId INT NOT NULL,
     Name NVARCHAR(150) NOT NULL,
     Category NVARCHAR(50) NOT NULL CHECK (Category IN (N'food', N'drink')),
+    DrinkCategory NVARCHAR(30) NULL,
     Price DECIMAL(18,2) NOT NULL CHECK (Price >= 0),
     IsAvailable BIT NOT NULL DEFAULT 1,
     CreatedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
     CONSTRAINT FK_MenuItems_Stores FOREIGN KEY (StoreId) REFERENCES dbo.Stores(Id)
+);
+
+CREATE TABLE dbo.DrinkCategories (
+    Id INT IDENTITY(1,1) PRIMARY KEY,
+    StoreId INT NOT NULL,
+    Code NVARCHAR(30) NOT NULL,
+    Name NVARCHAR(120) NOT NULL,
+    IsActive BIT NOT NULL DEFAULT 1,
+    CreatedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT FK_DrinkCategories_Stores FOREIGN KEY (StoreId) REFERENCES dbo.Stores(Id),
+    CONSTRAINT UQ_DrinkCategories_Store_Code UNIQUE (StoreId, Code)
 );
 
 CREATE TABLE dbo.StoreTables (
@@ -104,10 +117,18 @@ VALUES
 (@StoreId, N'B02', N'QR-QUAN-MAU-B02', 1),
 (@StoreId, N'B03', N'QR-QUAN-MAU-B03', 1);
 
-INSERT INTO dbo.MenuItems (StoreId, Name, Category, Price, IsAvailable)
+INSERT INTO dbo.DrinkCategories (StoreId, Code, Name, IsActive)
 VALUES
-(@StoreId, N'Cơm gà nướng', N'food', 55000, 1),
-(@StoreId, N'Bún bò', N'food', 50000, 1),
-(@StoreId, N'Trà đào', N'drink', 30000, 1),
-(@StoreId, N'Cà phê sữa', N'drink', 28000, 1);
+(@StoreId, N'cafe', N'Cafe', 1),
+(@StoreId, N'bubble_tea', N'Trà sữa', 1),
+(@StoreId, N'juice', N'Nước ép', 1),
+(@StoreId, N'smoothie', N'Sinh tố', 1),
+(@StoreId, N'other', N'Đồ uống khác', 1);
+
+INSERT INTO dbo.MenuItems (StoreId, Name, Category, DrinkCategory, Price, IsAvailable)
+VALUES
+(@StoreId, N'Cơm gà nướng', N'food', NULL, 55000, 1),
+(@StoreId, N'Bún bò', N'food', NULL, 50000, 1),
+(@StoreId, N'Trà đào', N'drink', N'juice', 30000, 1),
+(@StoreId, N'Cà phê sữa', N'drink', N'cafe', 28000, 1);
 GO

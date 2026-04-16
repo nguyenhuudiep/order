@@ -139,6 +139,9 @@
               <option value="food">Đồ ăn</option>
               <option value="drink">Đồ uống</option>
             </select>
+            <select name="drinkCategory" id="drink-category-field" style="display:none;">
+              <option value="" disabled selected>Chọn loại đồ uống</option>
+            </select>
             <input type="text" name="price" class="money-input" inputmode="numeric" placeholder="Giá (VD: 35.000)" required />
             <label class="checkbox">
               <input type="checkbox" name="isAvailable" checked />
@@ -150,6 +153,24 @@
             </div>
           </form>
           <p id="menu-message" class="message"></p>
+
+          <section class="panel drink-categories-panel" style="margin-top: 1rem;">
+            <header class="card-head">
+              <h3>Loại đồ uống</h3>
+              <p>Chủ động thêm, sửa, xóa loại đồ uống để dùng trong menu.</p>
+            </header>
+            <form id="drink-category-form" class="form inline-form drink-category-form-inline">
+              <input type="hidden" name="id" />
+              <input name="name" placeholder="Ví dụ: Trà trái cây" required />
+              <div class="row-actions">
+                <button type="submit">Lưu loại</button>
+                <button type="button" id="reset-drink-category-form" class="secondary">Mới</button>
+              </div>
+            </form>
+            <p id="drink-category-message" class="message"></p>
+            <div id="drink-categories-list" class="drink-categories-list"></div>
+          </section>
+
           <div id="admin-menu-list" class="menu-list"></div>
         </section>
       </section>

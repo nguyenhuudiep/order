@@ -90,6 +90,51 @@ async function ensureDatabaseCompatibility(connection) {
     BEGIN
       ALTER TABLE dbo.Stores ADD Phone NVARCHAR(30) NULL;
     END
+
+    IF COL_LENGTH('dbo.MenuItems', 'DrinkCategory') IS NULL
+    BEGIN
+      ALTER TABLE dbo.MenuItems ADD DrinkCategory NVARCHAR(30) NULL;
+    END
+
+    IF OBJECT_ID(N'dbo.DrinkCategories', N'U') IS NULL
+    BEGIN
+      CREATE TABLE dbo.DrinkCategories (
+        Id INT IDENTITY(1,1) PRIMARY KEY,
+        StoreId INT NOT NULL,
+        Code NVARCHAR(30) NOT NULL,
+        Name NVARCHAR(120) NOT NULL,
+        IsActive BIT NOT NULL DEFAULT 1,
+        CreatedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        CONSTRAINT FK_DrinkCategories_Stores FOREIGN KEY (StoreId) REFERENCES dbo.Stores(Id),
+        CONSTRAINT UQ_DrinkCategories_Store_Code UNIQUE (StoreId, Code)
+      );
+    END
+
+    IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.MenuItems') AND name = 'DrinkCategory')
+    BEGIN
+      UPDATE dbo.MenuItems
+      SET DrinkCategory = N'other'
+      WHERE Category = N'drink'
+        AND (DrinkCategory IS NULL OR LTRIM(RTRIM(DrinkCategory)) = N'');
+    END
+
+    ;WITH DefaultDrinkCategories AS (
+      SELECT N'cafe' AS Code, N'Cafe' AS Name
+      UNION ALL SELECT N'bubble_tea', N'Trà sữa'
+      UNION ALL SELECT N'juice', N'Nước ép'
+      UNION ALL SELECT N'smoothie', N'Sinh tố'
+      UNION ALL SELECT N'other', N'Đồ uống khác'
+    )
+    INSERT INTO dbo.DrinkCategories (StoreId, Code, Name, IsActive)
+    SELECT s.Id, d.Code, d.Name, 1
+    FROM dbo.Stores s
+    CROSS JOIN DefaultDrinkCategories d
+    WHERE NOT EXISTS (
+      SELECT 1
+      FROM dbo.DrinkCategories dc
+      WHERE dc.StoreId = s.Id
+        AND dc.Code = d.Code
+    );
   `);
 
   await compatibilityReadyPromise;
@@ -242,6 +287,34 @@ function buildInternalStoreCode() {
 
 function buildOrderLink(req, qrToken) {
   return `${req.protocol}://${req.get('host')}/scan/${encodeURIComponent(qrToken)}`;
+}
+
+function toDrinkCategoryCode(name) {
+  return String(name || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 30);
+}
+
+async function getDrinkCategoryMap(connection, storeId) {
+  const result = await connection.request()
+    .input('storeId', sql.Int, storeId)
+    .query(`
+      SELECT Code, Name
+      FROM dbo.DrinkCategories
+      WHERE StoreId = @storeId
+        AND IsActive = 1
+      ORDER BY Name ASC
+    `);
+
+  return result.recordset.reduce((acc, row) => {
+    acc[row.Code] = row.Name;
+    return acc;
+  }, {});
 }
 
 async function mapTableWithQr(req, table) {
@@ -555,11 +628,14 @@ app.get('/api/menu/by-table', async (req, res) => {
     const menuResult = await connection.request()
       .input('storeId', sql.Int, table.StoreId)
       .query(`
-        SELECT Id, Name, Category, Price, IsAvailable
-        FROM dbo.MenuItems
-        WHERE StoreId = @storeId
-          AND IsAvailable = 1
-        ORDER BY Category, Name
+        SELECT m.Id, m.Name, m.Category, m.DrinkCategory, dc.Name AS DrinkCategoryName, m.Price, m.IsAvailable
+        FROM dbo.MenuItems m
+        LEFT JOIN dbo.DrinkCategories dc
+          ON dc.StoreId = m.StoreId
+         AND dc.Code = m.DrinkCategory
+        WHERE m.StoreId = @storeId
+          AND m.IsAvailable = 1
+        ORDER BY m.Category, dc.Name, m.Name
       `);
 
     return res.json(menuResult.recordset);
@@ -1147,10 +1223,13 @@ app.get('/api/store/menu', requireStore, async (req, res) => {
     const result = await connection.request()
       .input('storeId', sql.Int, req.session.adminUser.storeId)
       .query(`
-        SELECT Id, Name, Category, Price, IsAvailable
-        FROM dbo.MenuItems
-        WHERE StoreId = @storeId
-        ORDER BY Category, Name
+        SELECT m.Id, m.Name, m.Category, m.DrinkCategory, dc.Name AS DrinkCategoryName, m.Price, m.IsAvailable
+        FROM dbo.MenuItems m
+        LEFT JOIN dbo.DrinkCategories dc
+          ON dc.StoreId = m.StoreId
+         AND dc.Code = m.DrinkCategory
+        WHERE m.StoreId = @storeId
+        ORDER BY m.Category, dc.Name, m.Name
       `);
 
     return res.json(result.recordset);
@@ -1161,9 +1240,10 @@ app.get('/api/store/menu', requireStore, async (req, res) => {
 });
 
 app.post('/api/store/menu', requireStore, async (req, res) => {
-  const { name, category, price, isAvailable } = req.body;
+  const { name, category, drinkCategory, price, isAvailable } = req.body;
   const normalizedName = String(name || '').trim();
   const numericPrice = Number(price);
+  const normalizedDrinkCategory = category === 'drink' ? String(drinkCategory || '').trim() : null;
 
   if (!normalizedName || !['food', 'drink'].includes(category) || Number.isNaN(numericPrice) || numericPrice < 0) {
     return res.status(400).json({ message: 'Dữ liệu món ăn không hợp lệ.' });
@@ -1171,15 +1251,38 @@ app.post('/api/store/menu', requireStore, async (req, res) => {
 
   try {
     const connection = await getPool();
+
+    if (category === 'drink') {
+      if (!normalizedDrinkCategory) {
+        return res.status(400).json({ message: 'Vui lòng chọn loại đồ uống.' });
+      }
+
+      const categoryResult = await connection.request()
+        .input('storeId', sql.Int, req.session.adminUser.storeId)
+        .input('code', sql.NVarChar(30), normalizedDrinkCategory)
+        .query(`
+          SELECT TOP 1 Id
+          FROM dbo.DrinkCategories
+          WHERE StoreId = @storeId
+            AND Code = @code
+            AND IsActive = 1
+        `);
+
+      if (!categoryResult.recordset[0]) {
+        return res.status(400).json({ message: 'Loại đồ uống không hợp lệ.' });
+      }
+    }
+
     await connection.request()
       .input('storeId', sql.Int, req.session.adminUser.storeId)
       .input('name', sql.NVarChar(150), normalizedName)
       .input('category', sql.NVarChar(50), category)
+      .input('drinkCategory', sql.NVarChar(30), normalizedDrinkCategory)
       .input('price', sql.Decimal(18, 2), numericPrice)
       .input('isAvailable', sql.Bit, Boolean(isAvailable))
       .query(`
-        INSERT INTO dbo.MenuItems (StoreId, Name, Category, Price, IsAvailable)
-        VALUES (@storeId, @name, @category, @price, @isAvailable)
+        INSERT INTO dbo.MenuItems (StoreId, Name, Category, DrinkCategory, Price, IsAvailable)
+        VALUES (@storeId, @name, @category, @drinkCategory, @price, @isAvailable)
       `);
 
     res.status(201).json({ message: 'Thêm món thành công.' });
@@ -1191,9 +1294,10 @@ app.post('/api/store/menu', requireStore, async (req, res) => {
 
 app.put('/api/store/menu/:id', requireStore, async (req, res) => {
   const menuId = Number(req.params.id);
-  const { name, category, price, isAvailable } = req.body;
+  const { name, category, drinkCategory, price, isAvailable } = req.body;
   const normalizedName = String(name || '').trim();
   const numericPrice = Number(price);
+  const normalizedDrinkCategory = category === 'drink' ? String(drinkCategory || '').trim() : null;
 
   if (!Number.isInteger(menuId) || !normalizedName || !['food', 'drink'].includes(category) || Number.isNaN(numericPrice) || numericPrice < 0) {
     return res.status(400).json({ message: 'Dữ liệu cập nhật món ăn không hợp lệ.' });
@@ -1201,17 +1305,41 @@ app.put('/api/store/menu/:id', requireStore, async (req, res) => {
 
   try {
     const connection = await getPool();
+
+    if (category === 'drink') {
+      if (!normalizedDrinkCategory) {
+        return res.status(400).json({ message: 'Vui lòng chọn loại đồ uống.' });
+      }
+
+      const categoryResult = await connection.request()
+        .input('storeId', sql.Int, req.session.adminUser.storeId)
+        .input('code', sql.NVarChar(30), normalizedDrinkCategory)
+        .query(`
+          SELECT TOP 1 Id
+          FROM dbo.DrinkCategories
+          WHERE StoreId = @storeId
+            AND Code = @code
+            AND IsActive = 1
+        `);
+
+      if (!categoryResult.recordset[0]) {
+        return res.status(400).json({ message: 'Loại đồ uống không hợp lệ.' });
+      }
+    }
+
     const result = await connection.request()
       .input('menuId', sql.Int, menuId)
       .input('storeId', sql.Int, req.session.adminUser.storeId)
       .input('name', sql.NVarChar(150), normalizedName)
       .input('category', sql.NVarChar(50), category)
+      .input('drinkCategory', sql.NVarChar(30), normalizedDrinkCategory)
       .input('price', sql.Decimal(18, 2), numericPrice)
       .input('isAvailable', sql.Bit, Boolean(isAvailable))
       .query(`
         UPDATE dbo.MenuItems
         SET Name = @name,
             Category = @category,
+            DrinkCategory = @drinkCategory,
             Price = @price,
             IsAvailable = @isAvailable
         WHERE Id = @menuId
@@ -1255,6 +1383,184 @@ app.delete('/api/store/menu/:id', requireStore, async (req, res) => {
 
     console.error(error);
     res.status(500).json({ message: 'Không xóa được món.' });
+  }
+});
+
+app.get('/api/store/drink-categories', requireStore, async (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+  try {
+    const connection = await getPool();
+    const result = await connection.request()
+      .input('storeId', sql.Int, req.session.adminUser.storeId)
+      .query(`
+        SELECT Id, Code, Name, IsActive, CreatedAt
+        FROM dbo.DrinkCategories
+        WHERE StoreId = @storeId
+          AND IsActive = 1
+        ORDER BY Name ASC
+      `);
+
+    return res.json(result.recordset);
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: 'Không lấy được loại đồ uống.' });
+  }
+});
+
+app.post('/api/store/drink-categories', requireStore, async (req, res) => {
+  const name = String(req.body.name || '').trim();
+  const code = toDrinkCategoryCode(name);
+
+  if (!name || !code) {
+    return res.status(400).json({ message: 'Tên loại đồ uống không hợp lệ.' });
+  }
+
+  try {
+    const connection = await getPool();
+    await connection.request()
+      .input('storeId', sql.Int, req.session.adminUser.storeId)
+      .input('code', sql.NVarChar(30), code)
+      .input('name', sql.NVarChar(120), name)
+      .query(`
+        INSERT INTO dbo.DrinkCategories (StoreId, Code, Name, IsActive)
+        VALUES (@storeId, @code, @name, 1)
+      `);
+
+    return res.status(201).json({ message: 'Thêm loại đồ uống thành công.' });
+  } catch (error) {
+    if (error.number === 2627 || error.number === 2601) {
+      return res.status(409).json({ message: 'Loại đồ uống này đã tồn tại.' });
+    }
+    console.error(error);
+    return res.status(500).json({ message: 'Không thêm được loại đồ uống.' });
+  }
+});
+
+app.put('/api/store/drink-categories/:id', requireStore, async (req, res) => {
+  const categoryId = Number(req.params.id);
+  const name = String(req.body.name || '').trim();
+  const code = toDrinkCategoryCode(name);
+
+  if (!Number.isInteger(categoryId) || !name || !code) {
+    return res.status(400).json({ message: 'Dữ liệu loại đồ uống không hợp lệ.' });
+  }
+
+  try {
+    const connection = await getPool();
+    const currentResult = await connection.request()
+      .input('categoryId', sql.Int, categoryId)
+      .input('storeId', sql.Int, req.session.adminUser.storeId)
+      .query(`
+        SELECT TOP 1 Id, Code
+        FROM dbo.DrinkCategories
+        WHERE Id = @categoryId
+          AND StoreId = @storeId
+          AND IsActive = 1
+      `);
+
+    const current = currentResult.recordset[0];
+    if (!current) {
+      return res.status(404).json({ message: 'Không tìm thấy loại đồ uống.' });
+    }
+
+    const transaction = new sql.Transaction(connection);
+    await transaction.begin();
+    try {
+      await new sql.Request(transaction)
+        .input('categoryId', sql.Int, categoryId)
+        .input('storeId', sql.Int, req.session.adminUser.storeId)
+        .input('code', sql.NVarChar(30), code)
+        .input('name', sql.NVarChar(120), name)
+        .query(`
+          UPDATE dbo.DrinkCategories
+          SET Code = @code,
+              Name = @name
+          WHERE Id = @categoryId
+            AND StoreId = @storeId
+        `);
+
+      await new sql.Request(transaction)
+        .input('storeId', sql.Int, req.session.adminUser.storeId)
+        .input('currentCode', sql.NVarChar(30), current.Code)
+        .input('nextCode', sql.NVarChar(30), code)
+        .query(`
+          UPDATE dbo.MenuItems
+          SET DrinkCategory = @nextCode
+          WHERE StoreId = @storeId
+            AND Category = N'drink'
+            AND DrinkCategory = @currentCode
+        `);
+
+      await transaction.commit();
+      return res.json({ message: 'Cập nhật loại đồ uống thành công.' });
+    } catch (txError) {
+      await transaction.rollback();
+      throw txError;
+    }
+  } catch (error) {
+    if (error.number === 2627 || error.number === 2601) {
+      return res.status(409).json({ message: 'Tên loại đồ uống bị trùng.' });
+    }
+    console.error(error);
+    return res.status(500).json({ message: 'Không cập nhật được loại đồ uống.' });
+  }
+});
+
+app.delete('/api/store/drink-categories/:id', requireStore, async (req, res) => {
+  const categoryId = Number(req.params.id);
+  if (!Number.isInteger(categoryId)) {
+    return res.status(400).json({ message: 'ID loại đồ uống không hợp lệ.' });
+  }
+
+  try {
+    const connection = await getPool();
+    const categoryResult = await connection.request()
+      .input('categoryId', sql.Int, categoryId)
+      .input('storeId', sql.Int, req.session.adminUser.storeId)
+      .query(`
+        SELECT TOP 1 Id, Code
+        FROM dbo.DrinkCategories
+        WHERE Id = @categoryId
+          AND StoreId = @storeId
+          AND IsActive = 1
+      `);
+
+    const category = categoryResult.recordset[0];
+    if (!category) {
+      return res.status(404).json({ message: 'Không tìm thấy loại đồ uống.' });
+    }
+
+    const usedResult = await connection.request()
+      .input('storeId', sql.Int, req.session.adminUser.storeId)
+      .input('code', sql.NVarChar(30), category.Code)
+      .query(`
+        SELECT COUNT(1) AS Total
+        FROM dbo.MenuItems
+        WHERE StoreId = @storeId
+          AND Category = N'drink'
+          AND DrinkCategory = @code
+      `);
+
+    if (Number(usedResult.recordset[0]?.Total || 0) > 0) {
+      return res.status(409).json({ message: 'Loại đồ uống đang được dùng trong menu, không thể xóa.' });
+    }
+
+    await connection.request()
+      .input('categoryId', sql.Int, categoryId)
+      .input('storeId', sql.Int, req.session.adminUser.storeId)
+      .query(`
+        UPDATE dbo.DrinkCategories
+        SET IsActive = 0
+        WHERE Id = @categoryId
+          AND StoreId = @storeId
+      `);
+
+    return res.json({ message: 'Đã xóa loại đồ uống.' });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: 'Không xóa được loại đồ uống.' });
   }
 });
 
@@ -1531,7 +1837,7 @@ app.post('/api/platform/stores', requirePlatform, async (req, res) => {
 
   try {
     const connection = await getPool();
-    await connection.request()
+    const insertResult = await connection.request()
       .input('name', sql.NVarChar(160), normalizedName)
       .input('code', sql.NVarChar(60), normalizedCode)
       .input('phone', sql.NVarChar(30), normalizedPhone || null)
@@ -1539,8 +1845,24 @@ app.post('/api/platform/stores', requirePlatform, async (req, res) => {
       .input('isActive', sql.Bit, Boolean(isActive))
       .query(`
         INSERT INTO dbo.Stores (Name, Code, Phone, Address, IsActive)
+        OUTPUT INSERTED.Id
         VALUES (@name, @code, @phone, @address, @isActive)
       `);
+
+    const storeId = Number(insertResult.recordset[0]?.Id || 0);
+    if (storeId > 0) {
+      await connection.request()
+        .input('storeId', sql.Int, storeId)
+        .query(`
+          INSERT INTO dbo.DrinkCategories (StoreId, Code, Name, IsActive)
+          VALUES
+            (@storeId, N'cafe', N'Cafe', 1),
+            (@storeId, N'bubble_tea', N'Trà sữa', 1),
+            (@storeId, N'juice', N'Nước ép', 1),
+            (@storeId, N'smoothie', N'Sinh tố', 1),
+            (@storeId, N'other', N'Đồ uống khác', 1)
+        `);
+    }
 
     return res.status(201).json({ message: 'Tạo cửa hàng thành công.' });
   } catch (error) {
