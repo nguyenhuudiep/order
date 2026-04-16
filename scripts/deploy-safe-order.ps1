@@ -29,6 +29,44 @@ function Assert-LastExitCode {
   }
 }
 
+function Get-TrackedChangedFiles {
+  $statusLines = git status --porcelain
+  Assert-LastExitCode -CommandName "git status --porcelain"
+
+  $trackedLines = $statusLines | Where-Object { $_ -and ($_ -notmatch '^\?\?\s') }
+  if (-not $trackedLines) {
+    return @()
+  }
+
+  return $trackedLines | ForEach-Object {
+    if ($_.Length -ge 4) {
+      $_.Substring(3).Trim()
+    }
+  } | Where-Object { $_ } | Select-Object -Unique
+}
+
+function Prepare-WorkingTreeForPull {
+  $trackedChanges = @(Get-TrackedChangedFiles)
+  if ($trackedChanges.Count -eq 0) {
+    return
+  }
+
+  $safeRestoreTargets = @('package-lock.json')
+  $restorableOnly = $trackedChanges | Where-Object { $_ -in $safeRestoreTargets }
+
+  if ($restorableOnly.Count -gt 0 -and $restorableOnly.Count -eq $trackedChanges.Count) {
+    Write-Host "[WARN] Local tracked change detected in package-lock.json. Auto-restore before pull."
+    git restore --source=HEAD --worktree -- package-lock.json
+    Assert-LastExitCode -CommandName "git restore package-lock.json"
+    return
+  }
+
+  $stashName = "deploy-safe-auto-stash-$(Get-Date -Format 'yyyyMMdd_HHmmss')"
+  Write-Host "[WARN] Local tracked changes detected. Auto-stash before pull: $stashName"
+  git stash push -m $stashName
+  Assert-LastExitCode -CommandName "git stash push"
+}
+
 function Install-Dependencies {
   if (Test-Path ".\package-lock.json") {
     npm ci --omit=dev
@@ -79,6 +117,9 @@ if ($untrackedFiles -contains "web.config") {
   Move-Item -Path ".\web.config" -Destination ".\$backupName" -Force
   Write-Host "[INFO] Backed up local web.config to $backupName"
 }
+
+Write-Step "Prepare git working tree for safe pull"
+Prepare-WorkingTreeForPull
 
 Write-Step "Pull latest code"
 git checkout $Branch
